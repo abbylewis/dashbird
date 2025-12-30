@@ -177,8 +177,18 @@ ul.task-list li input[type="checkbox"] {
 <div class="cell-output-display">
 <div class="shiny-plot-output html-fill-item" id="venn" style="width:100%;height:420px;"></div>
 </div>
-<div class="cell-output-display">
-<div id="abby" class="shiny-text-output"></div>
+<div class="cell-output-display no-overflow-x">
+<div class="row">
+<div class="col-sm-4">
+<div id="abby" class="shiny-html-output"></div>
+</div>
+<div class="col-sm-4">
+<div id="bjorn" class="shiny-html-output"></div>
+</div>
+<div class="col-sm-4">
+<div id="sue" class="shiny-html-output"></div>
+</div>
+</div>
 </div>
 </div>
 </div>
@@ -200,11 +210,15 @@ library(shiny)
 everything <- read_csv("https://raw.githubusercontent.com/abbylewis/dashbird/refs/heads/main/02_extracted_data/Abby_allData.csv", show_col_types = F) %>%
   mutate(Observer = "Abby Lewis") %>%
   bind_rows(read_csv("https://raw.githubusercontent.com/abbylewis/dashbird/refs/heads/main/02_extracted_data/Bjorn_allData.csv", show_col_types = F) %>%
-              mutate(Observer = "Bjorn Larson")) %>%
+              mutate(Observer = "Bjorn Larson"))  %>%
+  bind_rows(read_csv("https://raw.githubusercontent.com/abbylewis/dashbird/refs/heads/main/02_extracted_data/Sue_allData.csv", show_col_types = F) %>%
+              mutate(Observer = "Susan Lewis")) %>%
   mutate(Date = as.Date(Date, format = "%d %b %Y")) %>%
   arrange(Date) %>%
-  mutate(check_ID = paste(Date, Time, Latitude, Longitude)) %>%
-  filter(!grepl("sp.", `Common Name`))
+  mutate(check_ID = paste(Date, Time, Latitude, Longitude),
+         `Common Name` = sub(" \\(.+\\)", "", `Common Name`)) %>%
+  filter(!grepl("sp.", `Common Name`),
+         !grepl("/", `Common Name`))
 
 #Species
 all <- everything %>%
@@ -288,11 +302,13 @@ output$plot_comb_split <- renderPlotly({
   comb_plot_data <- all_collaborative %>%
     mutate(yday = yday(Date)) %>%
     bind_rows(data.frame(yday = 365, 
-                         year = c(2024, 2025, 2024, 2025),
+                         year = c(2024, 2025, 2024, 2025, 2024, 2025),
                          Observer = c("Abby Lewis",
                                       "Abby Lewis",
                                       "Bjorn Larson",
-                                      "Bjorn Larson"))) %>%
+                                      "Bjorn Larson",
+                                      "Susan Lewis",
+                                      "Susan Lewis"))) %>%
     group_by(Observer, year) %>%
     arrange(Observer, year, yday) %>%
     mutate(cum_sum = zoo::na.approx(cum_sum, rule = 2),
@@ -441,18 +457,33 @@ output$plot_comp_check <- renderPlotly({
 output$venn <- renderPlot({
   ggVennDiagram::ggVennDiagram(x = list(
     Abby = unique(all_personal$`Common Name`[all_personal$Observer=="Abby Lewis"]),
-    Bjorn = unique(all_personal$`Common Name`[all_personal$Observer=="Bjorn Larson"])
+    Bjorn = unique(all_personal$`Common Name`[all_personal$Observer=="Bjorn Larson"]),
+    Sue = unique(all_personal$`Common Name`[all_personal$Observer=="Susan Lewis"])
   ),
   label_geom = "text",
   label_color="white",
   label_alpha = 0.9)
 })
 
-output$abby <- renderText({
+output$abby <- renderUI({ 
   Abby = unique(all_personal$`Common Name`[all_personal$Observer=="Abby Lewis"])
   Other = unique(all_personal$`Common Name`[!all_personal$Observer=="Abby Lewis"])
-  Abby_text <- paste(Abby[!Abby%in%Other], collapse = "\n")
+  Abby_text <- HTML(c("<b>Abby's unique birds<\u002fb><br>",paste(Abby[!Abby%in%Other], collapse = "<br>")))
   Abby_text
+})
+  
+output$sue <- renderUI({ 
+  Sue = unique(all_personal$`Common Name`[all_personal$Observer=="Susan Lewis"])
+  Other = unique(all_personal$`Common Name`[!all_personal$Observer=="Susan Lewis"])
+  Sue_text <- HTML(c("<b>Sue's unique birds<\u002fb><br>",paste(Sue[!Sue%in%Other], collapse = "<br>")))
+  Sue_text
+})
+
+output$bjorn <- renderUI({ 
+  Bjorn = unique(all_personal$`Common Name`[all_personal$Observer=="Bjorn Larson"])
+  Other = unique(all_personal$`Common Name`[!all_personal$Observer=="Bjorn Larson"])
+  Bjorn_text <- HTML(c("<b>Bjorn's unique birds<\u002fb><br>",paste(Bjorn[!Bjorn%in%Other], collapse = "<br>")))
+  Bjorn_text
 })
 
 #Choose what to plot

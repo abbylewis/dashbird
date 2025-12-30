@@ -85,7 +85,16 @@ uiOutput('selected_comp', height = 420)
 ```{r}
 #| panel: fill
 plotOutput('venn', height = 420)
-textOutput("abby")
+fluidRow(
+  column(width = 4,
+         uiOutput("abby")
+  ),
+  column(width = 4,
+         uiOutput("bjorn")
+  ),
+  column(width = 4,
+         uiOutput("sue")
+  ))
 ```
 
 :::
@@ -100,11 +109,15 @@ textOutput("abby")
 everything <- read_csv("https://raw.githubusercontent.com/abbylewis/dashbird/refs/heads/main/02_extracted_data/Abby_allData.csv", show_col_types = F) %>%
   mutate(Observer = "Abby Lewis") %>%
   bind_rows(read_csv("https://raw.githubusercontent.com/abbylewis/dashbird/refs/heads/main/02_extracted_data/Bjorn_allData.csv", show_col_types = F) %>%
-              mutate(Observer = "Bjorn Larson")) %>%
+              mutate(Observer = "Bjorn Larson"))  %>%
+  bind_rows(read_csv("https://raw.githubusercontent.com/abbylewis/dashbird/refs/heads/main/02_extracted_data/Sue_allData.csv", show_col_types = F) %>%
+              mutate(Observer = "Susan Lewis")) %>%
   mutate(Date = as.Date(Date, format = "%d %b %Y")) %>%
   arrange(Date) %>%
-  mutate(check_ID = paste(Date, Time, Latitude, Longitude)) %>%
-  filter(!grepl("sp.", `Common Name`))
+  mutate(check_ID = paste(Date, Time, Latitude, Longitude),
+         `Common Name` = sub(" \\(.+\\)", "", `Common Name`)) %>%
+  filter(!grepl("sp.", `Common Name`),
+         !grepl("/", `Common Name`))
 
 #Species
 all <- everything %>%
@@ -188,11 +201,13 @@ output$plot_comb_split <- renderPlotly({
   comb_plot_data <- all_collaborative %>%
     mutate(yday = yday(Date)) %>%
     bind_rows(data.frame(yday = 365, 
-                         year = c(2024, 2025, 2024, 2025),
+                         year = c(2024, 2025, 2024, 2025, 2024, 2025),
                          Observer = c("Abby Lewis",
                                       "Abby Lewis",
                                       "Bjorn Larson",
-                                      "Bjorn Larson"))) %>%
+                                      "Bjorn Larson",
+                                      "Susan Lewis",
+                                      "Susan Lewis"))) %>%
     group_by(Observer, year) %>%
     arrange(Observer, year, yday) %>%
     mutate(cum_sum = zoo::na.approx(cum_sum, rule = 2),
@@ -341,18 +356,33 @@ output$plot_comp_check <- renderPlotly({
 output$venn <- renderPlot({
   ggVennDiagram::ggVennDiagram(x = list(
     Abby = unique(all_personal$`Common Name`[all_personal$Observer=="Abby Lewis"]),
-    Bjorn = unique(all_personal$`Common Name`[all_personal$Observer=="Bjorn Larson"])
+    Bjorn = unique(all_personal$`Common Name`[all_personal$Observer=="Bjorn Larson"]),
+    Sue = unique(all_personal$`Common Name`[all_personal$Observer=="Susan Lewis"])
   ),
   label_geom = "text",
   label_color="white",
   label_alpha = 0.9)
 })
 
-output$abby <- renderText({
+output$abby <- renderUI({ 
   Abby = unique(all_personal$`Common Name`[all_personal$Observer=="Abby Lewis"])
   Other = unique(all_personal$`Common Name`[!all_personal$Observer=="Abby Lewis"])
-  Abby_text <- paste(Abby[!Abby%in%Other], collapse = "\n")
+  Abby_text <- HTML(c("<b>Abby's unique birds</b><br>",paste(Abby[!Abby%in%Other], collapse = "<br>")))
   Abby_text
+})
+  
+output$sue <- renderUI({ 
+  Sue = unique(all_personal$`Common Name`[all_personal$Observer=="Susan Lewis"])
+  Other = unique(all_personal$`Common Name`[!all_personal$Observer=="Susan Lewis"])
+  Sue_text <- HTML(c("<b>Sue's unique birds</b><br>",paste(Sue[!Sue%in%Other], collapse = "<br>")))
+  Sue_text
+})
+
+output$bjorn <- renderUI({ 
+  Bjorn = unique(all_personal$`Common Name`[all_personal$Observer=="Bjorn Larson"])
+  Other = unique(all_personal$`Common Name`[!all_personal$Observer=="Bjorn Larson"])
+  Bjorn_text <- HTML(c("<b>Bjorn's unique birds</b><br>",paste(Bjorn[!Bjorn%in%Other], collapse = "<br>")))
+  Bjorn_text
 })
 
 #Choose what to plot
