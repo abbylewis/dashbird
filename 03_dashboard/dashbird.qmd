@@ -1,0 +1,459 @@
+---
+title: "Dashbird"
+title-block-banner: true
+format: 
+  html:
+    page-layout: full
+server: shiny
+---
+
+<style>
+.quarto-title-banner {
+  background-image: url("images/background.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  
+  /* Make it taller */
+  min-height: 200px;
+  
+  color: white; 
+}
+
+.quarto-title-banner .title, 
+.quarto-title-banner .subtitle, 
+.quarto-title-banner .author {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); /* make text readable */
+}
+
+</style>
+
+```{r, message=FALSE, warning=FALSE}
+#| context: setup
+
+library(tidyverse)
+library(plotly)
+
+
+```
+
+::: {.row}
+
+::: {.column width="23%"}
+
+```{r}
+#| panel: sidebar
+
+h4("Plot Specifications")
+
+dateInput('today', 'Today', 
+          min = "2025-09-18", 
+          max = Sys.Date(),
+          value = Sys.Date())
+
+br()
+numericInput('days_to_plot', 'Days of historical data to plot', 
+            0, 
+            round(as.numeric(difftime(Sys.Date(), "2025-09-19", units = "days"))),
+            value = 5)
+br()
+radioButtons(
+      "daily", label = "Time step", 
+      choices  = c("Hourly", "Daily mean"), 
+      selected = "Hourly"
+    )
+br()
+checkboxGroupInput(
+    'chambers', 'Chambers to plot', 
+    choices = as.character(seq(10, 90, 10)),
+    selected = as.character(seq(10, 90, 10))
+  )
+```
+
+::: 
+
+::: {.column width="73%"}
+
+::: {.panel-tabset}
+
+## Fluxes
+
+```{r}
+#| panel: fill
+plotlyOutput('plot_flux', height = 420)
+```
+
+## Partitioned CO~2~
+
+```{r}
+#| panel: fill
+plotlyOutput('plot_part', height = 420)
+```
+
+## Met
+
+```{r}
+#| panel: fill
+plotlyOutput('plot_met', height = 420)
+```
+
+## Redox
+
+```{r}
+#| panel: fill
+plotlyOutput('plot_redox', height = 420)
+```
+
+## Teros
+
+```{r}
+#| panel: fill
+plotlyOutput('plot_teros', height = 420)
+```
+
+## BME
+
+```{r}
+#| panel: fill
+plotlyOutput('plot_bme', height = 420)
+```
+
+:::
+
+:::
+
+:::
+
+```{r}
+#| context: server
+
+slopes_l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/Chapada_flux_data/refs/heads/master/processed_data/L0.csv", show_col_types = F) %>%
+  filter(!is.na(location),
+         n>30) %>%
+  mutate(TIMESTAMP = lubridate::force_tz(TIMESTAMP, tzone = "Etc/GMT-3")) %>% 
+  rename(chamber = Fluxing_Chamber) %>%
+  mutate(type = case_when(chamber == 90~"Termites", 
+                          chamber %in% c(10,20,30) &
+                            location == "low" ~ "Relatively drier",
+                          chamber %in% c(10,20,30,40,50) &
+                            location == "high" ~ "Relatively drier",
+                          .default = "Relatively wetter"
+                          ),
+         chamber_long = paste0(chamber, " (", type, ")"),
+         chamber = as.factor(chamber)) %>%
+  pivot_longer(matches("CH4_|CO2_"), 
+               names_to = c("gas", ".value"), 
+               names_sep="_" ) %>%
+  filter(!gas == "Flag")
+
+updateDateInput(inputId = "today", 
+                  max = as.Date(max(slopes_l0$TIMESTAMP)),
+                  value = as.Date(max(slopes_l0$TIMESTAMP)))
+
+updateNumericInput(inputId = 'days_to_plot',
+                  max = round(as.numeric(difftime(as.Date(max(slopes_l0$TIMESTAMP)), "2025-09-19", units = "days"))),
+                  value = 3)
+
+#Code for plots
+output$plot_flux <- renderPlotly({
+  slopes_recent <- slopes_l0 %>%
+    filter(as.Date(TIMESTAMP) <= input$today,
+           TIMESTAMP > (input$today - days(input$days_to_plot)))
+  
+  if(input$daily == "Daily mean"){
+    slopes_recent2 <- slopes_recent %>%
+      mutate(TIMESTAMP = as.Date(TIMESTAMP),
+             TIMESTAMP = as.POSIXct(TIMESTAMP)) %>%
+      group_by(TIMESTAMP, chamber, gas, location, type) %>%
+      summarize(slope = mean(slope, na.rm = T),
+                R2 = mean(R2, na.rm = T),
+                .groups = "drop")
+  } else {
+    slopes_recent2 <- slopes_recent
+  }
+  
+  p1 <- slopes_recent2 %>%
+    mutate(R2 = round(R2, 2)) %>%
+    filter(#gas %in% input$gases,
+           chamber %in% input$chambers) %>%
+    ggplot(aes(x = TIMESTAMP, y = slope, color = type,
+               group = chamber, label = R2)) +
+    geom_hline(yintercept = 0, color = "grey70") +
+    geom_point(size = 0.5) +
+    geom_line() +
+    facet_grid(gas~location, scales = "free_y") +
+    scale_x_datetime(date_labels = "%b %d") +
+    theme_bw()+
+    scale_color_manual(values = c("#E4D966", "#779B3E", "#673A0A"),
+                       breaks = c("Relatively drier", 
+                                  "Relatively wetter", 
+                                  "Termites"),
+                       name = "")+
+    theme(axis.title.x = element_blank(),
+          axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0))
+  plotly::ggplotly(p1, tooltip=c("chamber", "R2", "TIMESTAMP"))
+})
+
+###################################
+### NEE
+
+slopes_part <- read_csv("https://raw.githubusercontent.com/abbylewis/Chapada_flux_data/refs/heads/master/processed_data/partitioned_co2.csv", show_col_types = F) %>%
+  filter(!is.na(location)) %>%
+  mutate(DateTime = lubridate::force_tz(DateTime, tzone = "Etc/GMT-3")) %>% 
+  rename(chamber = Fluxing_Chamber) %>%
+  mutate(type = case_when(chamber == 90~"Termites", 
+                          chamber %in% c(10,20,30) &
+                            location == "low" ~ "Relatively drier",
+                          chamber %in% c(10,20,30,40,50) &
+                            location == "high" ~ "Relatively drier",
+                          .default = "Relatively wetter"
+                          ),
+         chamber_long = paste0(chamber, " (", type, ")"),
+         chamber = as.factor(chamber),
+         GPP = ifelse(!is_day, 0, GPP)) 
+
+#Code for plots
+output$plot_part <- renderPlotly({
+  slopes_part_recent <- slopes_part %>%
+    filter(as.Date(DateTime) <= input$today,
+           DateTime > (input$today - days(input$days_to_plot))) %>%
+    select(c(NEE, GPP, Reco, DateTime, chamber, location, type)) %>%
+    pivot_longer(c(NEE, GPP, Reco), 
+                 names_to = "gas") %>%
+    mutate(value = ifelse(gas == "GPP", -value, value)) %>%
+    filter(!gas == "Flag")
+  
+  if(input$daily == "Daily mean"){
+    slopes_part_recent2 <- slopes_part_recent %>%
+      mutate(DateTime = as.Date(DateTime),
+             DateTime = as.POSIXct(DateTime)) %>%
+      group_by(DateTime, chamber, gas, location, type) %>%
+      summarize(value = mean(value, na.rm = T),
+                .groups = "drop")
+  } else {
+    slopes_part_recent2 <- slopes_part_recent
+  }
+  
+  p1 <- slopes_part_recent2 %>%
+    filter(#gas %in% input$gases_part,
+           chamber %in% input$chambers) %>%
+    ggplot(aes(x = DateTime, y = value, color = type,
+               group = chamber)) +
+    geom_hline(yintercept = 0, color = "grey70") +
+    geom_point(size = 0.5) +
+    geom_line() +
+    facet_grid(gas~location, scales = "free_y") +
+    scale_x_datetime(date_labels = "%b %d") +
+    theme_bw()+
+    scale_color_manual(values = c("#E4D966", "#779B3E", "#673A0A"),
+                       breaks = c("Relatively drier", 
+                                  "Relatively wetter", 
+                                  "Termites"),
+                       name = "")+
+    theme(axis.title.x = element_blank(),
+          axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0))
+  plotly::ggplotly(p1, tooltip=c("chamber", "R2", "DateTime"))
+})
+
+###################################
+### Met
+
+met <- read_csv("https://raw.githubusercontent.com/abbylewis/Chapada_flux_data/refs/heads/master/processed_data/met_2025_dashboard.csv", show_col_types = F) %>%
+  mutate(TIMESTAMP = lubridate::force_tz(TIMESTAMP, tzone = "Etc/GMT-3"))
+
+#Code for plots
+output$plot_met <- renderPlotly({
+  met_recent <- met %>%
+    filter(as.Date(TIMESTAMP) <= input$today,
+           TIMESTAMP > (input$today - days(input$days_to_plot))) %>%
+    select(c(SlrFD_W_Avg, AirT_C_Avg, Rain_mm_Tot, TIMESTAMP)) %>%
+    pivot_longer(c(SlrFD_W_Avg, AirT_C_Avg, Rain_mm_Tot), 
+                 names_to = "metric")
+  
+  if(input$daily == "Daily mean"){
+    met_recent2 <- met_recent %>%
+      mutate(TIMESTAMP = as.Date(TIMESTAMP),
+             TIMESTAMP = as.POSIXct(TIMESTAMP)) %>%
+      group_by(TIMESTAMP, metric) %>%
+      summarize(value = mean(value, na.rm = T),
+                .groups = "drop")
+  } else {
+    met_recent2 <- met_recent
+  }
+  
+  p1 <- met_recent2 %>%
+    #filter(metric %in% input$metrics_met) %>%
+    ggplot(aes(x = TIMESTAMP, y = value)) +
+    geom_hline(yintercept = 0, color = "grey70") +
+    geom_point(size = 0.5) +
+    geom_line() +
+    facet_wrap(~metric, scales = "free_y", ncol = 1) +
+    scale_x_datetime(date_labels = "%b %d") +
+    theme_bw()+
+    theme(axis.title.x = element_blank(),
+          axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0))
+  plotly::ggplotly(p1, tooltip=c("TIMESTAMP", "value"))
+})
+
+
+###################################
+### Redox
+
+redox <- read_csv("https://raw.githubusercontent.com/abbylewis/Chapada_flux_data/refs/heads/master/processed_data/redox_2025_dashboard.csv")
+
+#Code for plots
+output$plot_redox <- renderPlotly({
+  redox_recent <- redox %>%
+    filter(as.Date(TIMESTAMP) <= input$today,
+           TIMESTAMP > (input$today - days(input$days_to_plot)),
+           paste0(chamber*10) %in% input$chambers) %>%
+    mutate(chamber = chamber*10,
+           type = case_when(chamber == 90~"Termites", 
+                            chamber %in% c(10,20,30) &
+                              location == "low" ~ "Relatively drier",
+                            chamber %in% c(10,20,30,40,50) &
+                              location == "high" ~ "Relatively drier",
+                            .default = "Relatively wetter"
+           ),
+           chamber_long = paste0(chamber, " (", type, ")"),
+           chamber = as.factor(chamber),
+           depth = paste0(depth, "cm")) #%>%
+    #filter(depth %in% input$depths,
+     #      ref %in% input$ref)
+  
+  if(input$daily == "Daily mean"){
+    redox_recent2 <- redox_recent %>%
+      mutate(TIMESTAMP = as.Date(TIMESTAMP),
+             TIMESTAMP = as.POSIXct(TIMESTAMP)) %>%
+      group_by(TIMESTAMP, location, chamber, depth, ref, type) %>%
+      summarize(value = mean(value, na.rm = T),
+                .groups = "drop")
+  } else {
+    redox_recent2 <- redox_recent
+  }
+  
+  p1 <- redox_recent2 %>%
+    mutate(#depth = factor(depth, levels = c("5cm", "15cm")),
+           chamber = factor(chamber)) %>%
+    ggplot(aes(x = TIMESTAMP, y = value, color = type)) +
+    geom_hline(yintercept = 0, color = "grey70") +
+    geom_point(size = 0.5) +
+    geom_line(aes(group = paste0(chamber, ref, depth))) +
+    facet_grid(depth~location) +
+    scale_x_datetime(date_labels = "%b %d") +
+    theme_bw()+
+    ylab("Redox sensor reading")+
+    scale_color_manual(values = c("#E4D966", "#779B3E", "#673A0A"),
+                       breaks = c("Relatively drier", 
+                                  "Relatively wetter", 
+                                  "Termites"),
+                       name = "")+
+    theme(axis.title.x = element_blank(),
+          axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0))
+  plotly::ggplotly(p1, tooltip=c("TIMESTAMP", "value"))
+})
+
+###################################
+### teros
+
+teros <- read_csv("https://raw.githubusercontent.com/abbylewis/Chapada_flux_data/refs/heads/master/processed_data/teros_2025_dashboard.csv")
+
+#Code for plots
+output$plot_teros <- renderPlotly({
+  teros_recent <- teros %>%
+    filter(as.Date(TIMESTAMP) <= input$today,
+           TIMESTAMP > (input$today - days(input$days_to_plot)),
+           paste0(chamber*10) %in% input$chambers) %>%
+    mutate(chamber = chamber*10,
+           type = case_when(chamber == 90~"Termites", 
+                            chamber %in% c(10,20,30) &
+                              location == "low" ~ "Relatively drier",
+                            chamber %in% c(10,20,30,40,50) &
+                              location == "high" ~ "Relatively drier",
+                            .default = "Relatively wetter"
+           ),
+           chamber_long = paste0(chamber, " (", type, ")"),
+           chamber = as.factor(chamber)) 
+  
+  if(input$daily == "Daily mean"){
+    teros_recent2 <- teros_recent %>%
+      mutate(TIMESTAMP = as.Date(TIMESTAMP),
+             TIMESTAMP = as.POSIXct(TIMESTAMP)) %>%
+      group_by(TIMESTAMP, location, chamber, type, var) %>%
+      summarize(value = mean(value, na.rm = T),
+                .groups = "drop")
+  } else {
+    teros_recent2 <- teros_recent
+  }
+  
+  p1 <- teros_recent2 %>%
+    mutate(chamber = factor(chamber)) %>%
+    ggplot(aes(x = TIMESTAMP, y = value, color = type, text = paste("Chamber:", chamber))) +
+    geom_point(size = 0.5) +
+    geom_line(aes(group = paste0(chamber, var))) +
+    facet_grid(var~location, scales = "free_y") +
+    scale_x_datetime(date_labels = "%b %d") +
+    theme_bw()+
+    ylab("value")+
+    scale_color_manual(values = c("#E4D966", "#779B3E", "#673A0A"),
+                       breaks = c("Relatively drier", 
+                                  "Relatively wetter", 
+                                  "Termites"),
+                       name = "")+
+    theme(axis.title.x = element_blank(),
+          axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0))
+  plotly::ggplotly(p1, tooltip=c("TIMESTAMP", "value", "text"))
+})
+
+###################################
+### bme
+
+bme <- read_csv("https://raw.githubusercontent.com/abbylewis/Chapada_flux_data/refs/heads/master/processed_data/bme_2025_dashboard.csv")
+
+#Code for plots
+output$plot_bme <- renderPlotly({
+  bme_recent <- bme %>%
+    filter(as.Date(TIMESTAMP) <= input$today,
+           TIMESTAMP > (input$today - days(input$days_to_plot)),
+           paste0(chamber*10) %in% input$chambers) %>%
+    mutate(chamber = chamber*10,
+           type = case_when(chamber == 90~"Termites", 
+                            chamber %in% c(10,20,30) &
+                              location == "low" ~ "Relatively drier",
+                            chamber %in% c(10,20,30,40,50) &
+                              location == "high" ~ "Relatively drier",
+                            .default = "Relatively wetter"
+           ),
+           chamber_long = paste0(chamber, " (", type, ")"),
+           chamber = as.factor(chamber)) 
+  
+  if(input$daily == "Daily mean"){
+    bme_recent2 <- bme_recent %>%
+      mutate(TIMESTAMP = as.Date(TIMESTAMP),
+             TIMESTAMP = as.POSIXct(TIMESTAMP)) %>%
+      group_by(TIMESTAMP, location, chamber, type, research_name) %>%
+      summarize(value = mean(value, na.rm = T),
+                .groups = "drop")
+  } else {
+    bme_recent2 <- bme_recent
+  }
+  
+  p1 <- bme_recent2 %>%
+    mutate(chamber = factor(chamber)) %>%
+    ggplot(aes(x = TIMESTAMP, y = value, color = type, text = paste("Chamber:", chamber))) +
+    geom_point(size = 0.5) +
+    geom_line(aes(group = paste0(chamber, research_name))) +
+    facet_grid(research_name~location, scales = "free_y") +
+    scale_x_datetime(date_labels = "%b %d") +
+    theme_bw()+
+    ylab("value")+
+    scale_color_manual(values = c("#E4D966", "#779B3E", "#673A0A"),
+                       breaks = c("Relatively drier", 
+                                  "Relatively wetter", 
+                                  "Termites"),
+                       name = "")+
+    theme(axis.title.x = element_blank(),
+          axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0))
+  plotly::ggplotly(p1, tooltip=c("TIMESTAMP", "value", "text"))
+})
+```
