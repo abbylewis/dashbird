@@ -20,7 +20,9 @@ server: shiny
   color: white; 
 }
 
-.quarto-title-banner .title, 
+.quarto-title-banner .title {
+  margin-top: 100px; /* Adjust the value as needed */
+}
 .quarto-title-banner .subtitle, 
 .quarto-title-banner .author {
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); /* make text readable */
@@ -51,6 +53,11 @@ radioButtons(inputId = "to_plot",
              choices = c("Species",
                          "Individuals",
                          "Checklists"))
+br()
+radioButtons(inputId = "contrib",
+             label = "Show individual contributions?",
+             choices = c("No",
+                         "Yes"))
 ```
 
 ::: 
@@ -73,6 +80,14 @@ uiOutput('selected_comb', height = 420)
 uiOutput('selected_comp', height = 420)
 ```
 
+## Venn
+
+```{r}
+#| panel: fill
+plotOutput('venn', height = 420)
+textOutput("abby")
+```
+
 :::
 
 :::
@@ -88,7 +103,8 @@ everything <- read_csv("https://raw.githubusercontent.com/abbylewis/dashbird/ref
               mutate(Observer = "Bjorn Larson")) %>%
   mutate(Date = as.Date(Date, format = "%d %b %Y")) %>%
   arrange(Date) %>%
-  mutate(check_ID = paste(Date, Time, Latitude, Longitude))
+  mutate(check_ID = paste(Date, Time, Latitude, Longitude)) %>%
+  filter(!grepl("sp.", `Common Name`))
 
 #Species
 all <- everything %>%
@@ -168,7 +184,7 @@ all_collaborative_check <- all_check %>%
   mutate(cum_sum = cumsum(Count))
 
 #Code for plots
-output$plot_comb <- renderPlotly({
+output$plot_comb_split <- renderPlotly({
   comb_plot_data <- all_collaborative %>%
     mutate(yday = yday(Date)) %>%
     bind_rows(data.frame(yday = 365, 
@@ -198,6 +214,28 @@ output$plot_comb <- renderPlotly({
           panel.border = element_rect(color = "grey20"))
   
   plotly::ggplotly(comb_plot, tooltip = c("fill"))
+})
+
+output$plot_comb <- renderPlotly({
+  comb_plot <- all_collaborative %>%
+    group_by(year) %>%
+    mutate(cum_sum = cumsum(credit)) %>%
+    mutate(yday = yday(Date),
+           Date_stand = as.Date("2024-01-01")+days(yday-1),
+           year = as.factor(year)) %>%
+    ggplot(aes(x = Date_stand, y = cum_sum, color = year))+
+    geom_line()+
+    egg::theme_article()+
+    #facet_wrap(~year, scales = "free_x")+
+    ylab("Number of species")+
+    scale_color_manual(values = c("#4ECDC4","#29363D","#E54B4B"))+
+    scale_x_date(date_labels = "%b", 
+                 expand = c(0,0))+
+    theme(panel.grid.major = element_line(color = "grey95"),
+          axis.title.x = element_blank(),
+          panel.border = element_rect(color = "grey20"))
+  
+  plotly::ggplotly(comb_plot)
 })
 
 output$plot_comb_bird <- renderPlotly({
@@ -300,6 +338,23 @@ output$plot_comp_check <- renderPlotly({
   plotly::ggplotly(comb_plot)
 })
 
+output$venn <- renderPlot({
+  ggVennDiagram::ggVennDiagram(x = list(
+    Abby = unique(all_personal$`Common Name`[all_personal$Observer=="Abby Lewis"]),
+    Bjorn = unique(all_personal$`Common Name`[all_personal$Observer=="Bjorn Larson"])
+  ),
+  label_geom = "text",
+  label_color="white",
+  label_alpha = 0.9)
+})
+
+output$abby <- renderText({
+  Abby = unique(all_personal$`Common Name`[all_personal$Observer=="Abby Lewis"])
+  Other = unique(all_personal$`Common Name`[!all_personal$Observer=="Abby Lewis"])
+  Abby_text <- paste(Abby[!Abby%in%Other], collapse = "\n")
+  Abby_text
+})
+
 #Choose what to plot
 output$selected_comp <- renderUI({
   if (input$to_plot == "Species") {
@@ -312,11 +367,13 @@ output$selected_comp <- renderUI({
 })
 
 output$selected_comb <- renderUI({
-  if (input$to_plot == "Species") {
-    plotlyOutput("plot_comb")
-  } else if (input$to_plot == "Individuals") {
+  if(input$to_plot == "Species") {
+    if(input$contrib == "Yes") {
+      plotlyOutput("plot_comb_split")
+    }else{plotlyOutput("plot_comb")}
+  }else if (input$to_plot == "Individuals") {
     plotlyOutput("plot_comb_bird")
-  } else if (input$to_plot == "Checklists") {
+  }else if (input$to_plot == "Checklists") {
     plotlyOutput("plot_comb_check")
   }
 })

@@ -77,7 +77,9 @@ ul.task-list li input[type="checkbox"] {
   color: white; 
 }
 
-.quarto-title-banner .title, 
+.quarto-title-banner .title {
+  margin-top: 100px; /* Adjust the value as needed */
+}
 .quarto-title-banner .subtitle, 
 .quarto-title-banner .author {
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); /* make text readable */
@@ -118,11 +120,33 @@ ul.task-list li input[type="checkbox"] {
 </div>
 </div>
 </div>
+<div class="cell-output-display">
+<br>
+</div>
+<div class="cell-output-display">
+<div id="contrib" class="form-group shiny-input-radiogroup shiny-input-container" role="radiogroup" aria-labelledby="contrib-label">
+<label class="control-label" id="contrib-label" for="contrib">Show individual contributions?</label>
+<div class="shiny-options-group">
+<div class="radio">
+<label>
+<input type="radio" name="contrib" value="No" checked="checked">
+<span>No</span>
+</label>
+</div>
+<div class="radio">
+<label>
+<input type="radio" name="contrib" value="Yes">
+<span>Yes</span>
+</label>
+</div>
+</div>
+</div>
+</div>
 </div>
 </div>
 <div class="column" style="width:73%;">
 <div class="tabset-margin-container"></div><div class="panel-tabset">
-<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-1-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-1" role="tab" aria-controls="tabset-1-1" aria-selected="true" href="">Collaborative</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-2" role="tab" aria-controls="tabset-1-2" aria-selected="false" href="">Competitive</a></li></ul>
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-1-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-1" role="tab" aria-controls="tabset-1-1" aria-selected="true" href="">Collaborative</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-2" role="tab" aria-controls="tabset-1-2" aria-selected="false" href="">Competitive</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-3-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-3" role="tab" aria-controls="tabset-1-3" aria-selected="false" href="">Venn</a></li></ul>
 <div class="tab-content">
 <div id="tabset-1-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-1-1-tab">
 <div class="panel-fill panel-grid">
@@ -141,6 +165,20 @@ ul.task-list li input[type="checkbox"] {
 <div class="cell panel-fill">
 <div class="cell-output-display no-overflow-x">
 <div id="selected_comp" class="shiny-html-output" height="420"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div id="tabset-1-3" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-3-tab">
+<div class="panel-fill panel-grid">
+<div class="g-col-24">
+<div class="cell panel-fill">
+<div class="cell-output-display">
+<div class="shiny-plot-output html-fill-item" id="venn" style="width:100%;height:420px;"></div>
+</div>
+<div class="cell-output-display">
+<div id="abby" class="shiny-text-output"></div>
 </div>
 </div>
 </div>
@@ -165,7 +203,8 @@ everything <- read_csv("https://raw.githubusercontent.com/abbylewis/dashbird/ref
               mutate(Observer = "Bjorn Larson")) %>%
   mutate(Date = as.Date(Date, format = "%d %b %Y")) %>%
   arrange(Date) %>%
-  mutate(check_ID = paste(Date, Time, Latitude, Longitude))
+  mutate(check_ID = paste(Date, Time, Latitude, Longitude)) %>%
+  filter(!grepl("sp.", `Common Name`))
 
 #Species
 all <- everything %>%
@@ -245,7 +284,7 @@ all_collaborative_check <- all_check %>%
   mutate(cum_sum = cumsum(Count))
 
 #Code for plots
-output$plot_comb <- renderPlotly({
+output$plot_comb_split <- renderPlotly({
   comb_plot_data <- all_collaborative %>%
     mutate(yday = yday(Date)) %>%
     bind_rows(data.frame(yday = 365, 
@@ -275,6 +314,28 @@ output$plot_comb <- renderPlotly({
           panel.border = element_rect(color = "grey20"))
   
   plotly::ggplotly(comb_plot, tooltip = c("fill"))
+})
+
+output$plot_comb <- renderPlotly({
+  comb_plot <- all_collaborative %>%
+    group_by(year) %>%
+    mutate(cum_sum = cumsum(credit)) %>%
+    mutate(yday = yday(Date),
+           Date_stand = as.Date("2024-01-01")+days(yday-1),
+           year = as.factor(year)) %>%
+    ggplot(aes(x = Date_stand, y = cum_sum, color = year))+
+    geom_line()+
+    egg::theme_article()+
+    #facet_wrap(~year, scales = "free_x")+
+    ylab("Number of species")+
+    scale_color_manual(values = c("#4ECDC4","#29363D","#E54B4B"))+
+    scale_x_date(date_labels = "%b", 
+                 expand = c(0,0))+
+    theme(panel.grid.major = element_line(color = "grey95"),
+          axis.title.x = element_blank(),
+          panel.border = element_rect(color = "grey20"))
+  
+  plotly::ggplotly(comb_plot)
 })
 
 output$plot_comb_bird <- renderPlotly({
@@ -377,6 +438,23 @@ output$plot_comp_check <- renderPlotly({
   plotly::ggplotly(comb_plot)
 })
 
+output$venn <- renderPlot({
+  ggVennDiagram::ggVennDiagram(x = list(
+    Abby = unique(all_personal$`Common Name`[all_personal$Observer=="Abby Lewis"]),
+    Bjorn = unique(all_personal$`Common Name`[all_personal$Observer=="Bjorn Larson"])
+  ),
+  label_geom = "text",
+  label_color="white",
+  label_alpha = 0.9)
+})
+
+output$abby <- renderText({
+  Abby = unique(all_personal$`Common Name`[all_personal$Observer=="Abby Lewis"])
+  Other = unique(all_personal$`Common Name`[!all_personal$Observer=="Abby Lewis"])
+  Abby_text <- paste(Abby[!Abby%in%Other], collapse = "\n")
+  Abby_text
+})
+
 #Choose what to plot
 output$selected_comp <- renderUI({
   if (input$to_plot == "Species") {
@@ -389,11 +467,13 @@ output$selected_comp <- renderUI({
 })
 
 output$selected_comb <- renderUI({
-  if (input$to_plot == "Species") {
-    plotlyOutput("plot_comb")
-  } else if (input$to_plot == "Individuals") {
+  if(input$to_plot == "Species") {
+    if(input$contrib == "Yes") {
+      plotlyOutput("plot_comb_split")
+    }else{plotlyOutput("plot_comb")}
+  }else if (input$to_plot == "Individuals") {
     plotlyOutput("plot_comb_bird")
-  } else if (input$to_plot == "Checklists") {
+  }else if (input$to_plot == "Checklists") {
     plotlyOutput("plot_comb_check")
   }
 })
@@ -441,7 +521,7 @@ ojs_define <- function(..., .session = shiny::getDefaultReactiveDomain()) {
 </p>
 <!--html_preserve-->
 <script type="application/shiny-prerendered" data-context="dependencies">
-{"type":"list","attributes":{},"value":[]}
+{"type":"list","attributes":{},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","version","src","meta","script","stylesheet","head","attachment","package","all_files","pkgVersion"]},"class":{"type":"character","attributes":{},"value":["html_dependency"]}},"value":[{"type":"character","attributes":{},"value":["htmltools-fill"]},{"type":"character","attributes":{},"value":["0.5.8.1"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["file"]}},"value":[{"type":"character","attributes":{},"value":["fill"]}]},{"type":"NULL"},{"type":"NULL"},{"type":"character","attributes":{},"value":["fill.css"]},{"type":"NULL"},{"type":"NULL"},{"type":"character","attributes":{},"value":["htmltools"]},{"type":"logical","attributes":{},"value":[true]},{"type":"character","attributes":{},"value":["0.5.8.1"]}]}]}
 </script>
 <!--/html_preserve-->
 <!--html_preserve-->
