@@ -85,19 +85,8 @@ uiOutput('selected_comp', height = 420)
 ```{r}
 #| panel: fill
 plotOutput('venn', height = 420)
-fluidRow(
-  column(width = 4,
-         uiOutput("abby")
-  ),
-  column(width = 4,
-         uiOutput("bjorn")
-  ),
-  column(width = 4,
-         uiOutput("eric")
-  ),
-  column(width = 4,
-         uiOutput("sue")
-  ))
+h3("Unique birds")
+DT::dataTableOutput("unique_birds")
 ```
 
 :::
@@ -127,26 +116,56 @@ everything <- read_csv("https://raw.githubusercontent.com/abbylewis/dashbird/ref
 #Species
 all <- everything %>%
   select(`Common Name`, Date, Observer, Time) %>%
-  mutate(year = year(Date),
-         DateTime = as_datetime(paste(Date, Time))) %>%
+  mutate(year = year(Date)) %>%
   filter(!year == 2023) %>%
-  arrange(DateTime) 
+  arrange(Date) 
 
 all_personal <- all %>%
   group_by(year, Observer) %>%
   filter(!duplicated(`Common Name`)) %>%
-  mutate(cum_sum = row_number())
+  mutate(cum_sum = row_number(),
+         year = year(Date)) 
+
+all_personal_filled <- all %>%
+  group_by(year, Observer) %>%
+  filter(!duplicated(`Common Name`)) %>%
+  mutate(cum_sum = row_number()) %>%
+  group_by(Date, Observer) %>%
+  filter(cum_sum == max(cum_sum)) %>%
+  group_by(Observer) %>%
+  complete(
+    Date = seq.Date(
+      from = as.Date("2024-01-01"),
+      to   = Sys.Date(),
+      by   = "day"
+    )) %>%
+  mutate(year = year(Date)) %>%
+  tibble() %>%
+  group_by(Observer, year) %>%
+  arrange(Date) %>%
+  fill(c(cum_sum))
 
 all_collaborative <- all %>%
   select(-Observer) %>%
   group_by(year) %>%
   filter(!duplicated(`Common Name`)) %>%
-  left_join(all_personal) %>%
-  group_by(DateTime, `Common Name`) %>%
+  mutate(cum_sum = row_number())  %>%
+  left_join(all_personal %>% select(-cum_sum, -Time) %>%
+              filter(!is.na(`Common Name`))) %>%
+  group_by(Date, `Common Name`) %>%
   mutate(credit = 1/length(unique(Observer))) %>%
   group_by(Observer, year) %>%
-  arrange(DateTime) %>%
+  arrange(Date) %>%
   mutate(cum_sum = cumsum(credit)) %>%
+  complete(
+    Date = seq.Date(
+      from = as.Date("2024-01-01"),
+      to   = Sys.Date(),
+      by   = "day"
+    )) %>%
+  mutate(year = year(Date)) %>%
+  arrange(Date) %>%
+  fill(c(cum_sum)) %>%
   group_by(Observer) 
 
 #Individuals
@@ -163,6 +182,16 @@ all_birds <- everything %>%
   filter(!year == 2023) %>%
   group_by(year, Date, Observer) %>%
   summarize(Count = sum(as.numeric(Count))) %>%
+  group_by(Observer) %>%
+  complete(
+    Date = seq.Date(
+      from = as.Date("2024-01-01"),
+      to   = Sys.Date(),
+      by   = "day"
+    ),
+    fill = list(Count = 0)
+  ) %>%
+  mutate(year = year(Date)) %>%
   arrange(Date)
 
 all_personal_birds <- all_birds %>%
@@ -189,10 +218,20 @@ all_check <- everything %>%
   filter(!year == 2023) %>%
   group_by(year, Date, Observer) %>%
   summarize(Count = sum(credit)) %>%
-  arrange(Date)
+  group_by(Observer) %>%
+  complete(
+    Date = seq.Date(
+      from = as.Date("2024-01-01"),
+      to   = Sys.Date(),
+      by   = "day"
+    ),
+    fill = list(Count = 0)
+  ) %>%
+  mutate(year = year(Date))
 
 all_personal_check <- all_check %>%
   group_by(year, Observer) %>%
+  arrange(year, Observer, Date) %>%
   mutate(cum_sum = cumsum(Count))
 
 all_collaborative_check <- all_check %>%
@@ -205,21 +244,9 @@ all_collaborative_check <- all_check %>%
 output$plot_comb_split <- renderPlotly({
   comb_plot_data <- all_collaborative %>%
     mutate(yday = yday(Date)) %>%
-    bind_rows(data.frame(yday = 365, 
-                         year = c(2024, 2025, 2024, 2025, 
-                                  2024, 2025, 2024, 2025),
-                         Observer = c("Abby Lewis",
-                                      "Abby Lewis",
-                                      "Bjorn Larson",
-                                      "Bjorn Larson",
-                                      "Eric Larson",
-                                      "Eric Larson",
-                                      "Susan Lewis",
-                                      "Susan Lewis"))) %>%
     group_by(Observer, year) %>%
     arrange(Observer, year, yday) %>%
-    mutate(cum_sum = zoo::na.approx(cum_sum, rule = 2),
-           Date_stand = as.Date("2024-01-01")+days(yday-1),
+    mutate(Date_stand = as.Date("2024-01-01")+days(yday-1),
            year = as.factor(year),
            Date_stand = as.Date("2024-01-01")+days(yday-1)) 
   
@@ -229,7 +256,7 @@ output$plot_comb_split <- renderPlotly({
     egg::theme_article()+
     facet_wrap(~year, scales = "free_x")+
     ylab("Number of species")+
-    scale_fill_manual(values = c("#4ECDC4","#29363D","#E54B4B"))+
+    scale_fill_manual(values = c("#60AB9A","#18476E","#F5B905","#A355C7"))+
     scale_x_date(date_labels = "%b", 
                  expand = c(0,0))+
     theme(panel.grid.major = element_line(color = "grey95"),
@@ -241,6 +268,8 @@ output$plot_comb_split <- renderPlotly({
 
 output$plot_comb <- renderPlotly({
   comb_plot <- all_collaborative %>%
+    group_by(Date, year) %>%
+    summarize(credit = sum(credit, na.rm = T)) %>%
     group_by(year) %>%
     mutate(cum_sum = cumsum(credit)) %>%
     mutate(yday = yday(Date),
@@ -302,7 +331,7 @@ output$plot_comb_check <- renderPlotly({
 })
 
 output$plot_comp <- renderPlotly({
-  comb_plot <- all_personal %>%
+  comb_plot <- all_personal_filled %>%
     mutate(yday = yday(Date),
            Date_stand = as.Date("2024-01-01")+days(yday-1),
            year = as.factor(year)) %>%
@@ -311,7 +340,7 @@ output$plot_comp <- renderPlotly({
     egg::theme_article()+
     facet_wrap(~year, scales = "free_x")+
     ylab("Number of species")+
-    scale_color_manual(values = c("#4ECDC4","#29363D","#E54B4B", "purple"))+
+    scale_color_manual(values = c("#60AB9A","#18476E","#F5B905","#A355C7"))+
     scale_x_date(date_labels = "%b", 
                  expand = c(0,0))+
     theme(panel.grid.major = element_line(color = "grey95"),
@@ -331,7 +360,7 @@ output$plot_comp_bird <- renderPlotly({
     egg::theme_article()+
     facet_wrap(~year, scales = "free_x")+
     ylab("Number of individuals")+
-    scale_color_manual(values = c("#4ECDC4","#29363D","#E54B4B", "purple"))+
+    scale_color_manual(values = c("#60AB9A","#18476E","#F5B905","#A355C7"))+
     scale_x_date(date_labels = "%b", 
                  expand = c(0,0))+
     theme(panel.grid.major = element_line(color = "grey95"),
@@ -351,7 +380,7 @@ output$plot_comp_check <- renderPlotly({
     egg::theme_article()+
     facet_wrap(~year, scales = "free_x")+
     ylab("Number of checklists")+
-    scale_color_manual(values = c("#4ECDC4","#29363D","#E54B4B", "purple"))+
+    scale_color_manual(values = c("#60AB9A","#18476E","#F5B905","#A355C7"))+
     scale_x_date(date_labels = "%b", 
                  expand = c(0,0))+
     theme(panel.grid.major = element_line(color = "grey95"),
@@ -373,32 +402,42 @@ output$venn <- renderPlot({
   label_alpha = 0.9)
 })
 
-output$abby <- renderUI({ 
+output$unique_birds <- DT::renderDT({ 
   Abby = unique(all_personal$`Common Name`[all_personal$Observer=="Abby Lewis"])
   Other = unique(all_personal$`Common Name`[!all_personal$Observer=="Abby Lewis"])
-  Abby_text <- HTML(c("<b>Abby's unique birds</b><br>",paste(Abby[!Abby%in%Other], collapse = "<br>")))
-  Abby_text
-})
+  Abby_text <- HTML(paste(Abby[!Abby%in%Other], collapse = "<br>"))
   
-output$sue <- renderUI({ 
   Sue = unique(all_personal$`Common Name`[all_personal$Observer=="Susan Lewis"])
   Other = unique(all_personal$`Common Name`[!all_personal$Observer=="Susan Lewis"])
-  Sue_text <- HTML(c("<b>Sue's unique birds</b><br>",paste(Sue[!Sue%in%Other], collapse = "<br>")))
-  Sue_text
-})
-
-output$bjorn <- renderUI({ 
+  Sue_text <- HTML(paste(Sue[!Sue%in%Other], collapse = "<br>"))
+  
   Bjorn = unique(all_personal$`Common Name`[all_personal$Observer=="Bjorn Larson"])
   Other = unique(all_personal$`Common Name`[!all_personal$Observer=="Bjorn Larson"])
-  Bjorn_text <- HTML(c("<b>Bjorn's unique birds</b><br>",paste(Bjorn[!Bjorn%in%Other], collapse = "<br>")))
-  Bjorn_text
-})
-
-output$eric <- renderUI({ 
+  Bjorn_text <- HTML(paste(Bjorn[!Bjorn%in%Other], collapse = "<br>"))
+  
   Eric = unique(all_personal$`Common Name`[all_personal$Observer=="Eric Larson"])
   Other = unique(all_personal$`Common Name`[!all_personal$Observer=="Eric Larson"])
-  Eric_text <- HTML(c("<b>Eric's unique birds</b><br>",paste(Eric[!Eric%in%Other], collapse = "<br>")))
-  Eric_text
+  Eric_text <- HTML(paste(Eric[!Eric%in%Other], collapse = "<br>"))
+  
+  comb <- data.frame(Abby = Abby_text, 
+                     Bjorn = Bjorn_text, 
+                     Sue = Sue_text, 
+                     Eric = Eric_text)
+  DT::datatable(comb,
+                escape = FALSE,
+                rownames = FALSE,
+                options = list(
+                  dom = "t",
+                  paging = FALSE,
+                  searching = FALSE,
+                  ordering = FALSE
+                ),
+                class = "compact"
+  ) %>%
+    DT::formatStyle(
+      columns = names(comb),
+      verticalAlign = "top"
+    )
 })
 
 #Choose what to plot

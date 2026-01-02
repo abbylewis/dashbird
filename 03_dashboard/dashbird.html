@@ -177,21 +177,11 @@ ul.task-list li input[type="checkbox"] {
 <div class="cell-output-display">
 <div class="shiny-plot-output html-fill-item" id="venn" style="width:100%;height:420px;"></div>
 </div>
-<div class="cell-output-display no-overflow-x">
-<div class="row">
-<div class="col-sm-4">
-<div id="abby" class="shiny-html-output"></div>
+<div class="cell-output-display">
+<h3 class="anchored">Unique birds</h3>
 </div>
-<div class="col-sm-4">
-<div id="bjorn" class="shiny-html-output"></div>
-</div>
-<div class="col-sm-4">
-<div id="eric" class="shiny-html-output"></div>
-</div>
-<div class="col-sm-4">
-<div id="sue" class="shiny-html-output"></div>
-</div>
-</div>
+<div class="cell-output-display">
+<div class="datatables html-widget html-widget-output shiny-report-size html-fill-item" id="unique_birds" style="width:100%;height:auto;"></div>
 </div>
 </div>
 </div>
@@ -228,26 +218,56 @@ everything <- read_csv("https://raw.githubusercontent.com/abbylewis/dashbird/ref
 #Species
 all <- everything %>%
   select(`Common Name`, Date, Observer, Time) %>%
-  mutate(year = year(Date),
-         DateTime = as_datetime(paste(Date, Time))) %>%
+  mutate(year = year(Date)) %>%
   filter(!year == 2023) %>%
-  arrange(DateTime) 
+  arrange(Date) 
 
 all_personal <- all %>%
   group_by(year, Observer) %>%
   filter(!duplicated(`Common Name`)) %>%
-  mutate(cum_sum = row_number())
+  mutate(cum_sum = row_number(),
+         year = year(Date)) 
+
+all_personal_filled <- all %>%
+  group_by(year, Observer) %>%
+  filter(!duplicated(`Common Name`)) %>%
+  mutate(cum_sum = row_number()) %>%
+  group_by(Date, Observer) %>%
+  filter(cum_sum == max(cum_sum)) %>%
+  group_by(Observer) %>%
+  complete(
+    Date = seq.Date(
+      from = as.Date("2024-01-01"),
+      to   = Sys.Date(),
+      by   = "day"
+    )) %>%
+  mutate(year = year(Date)) %>%
+  tibble() %>%
+  group_by(Observer, year) %>%
+  arrange(Date) %>%
+  fill(c(cum_sum))
 
 all_collaborative <- all %>%
   select(-Observer) %>%
   group_by(year) %>%
   filter(!duplicated(`Common Name`)) %>%
-  left_join(all_personal) %>%
-  group_by(DateTime, `Common Name`) %>%
+  mutate(cum_sum = row_number())  %>%
+  left_join(all_personal %>% select(-cum_sum, -Time) %>%
+              filter(!is.na(`Common Name`))) %>%
+  group_by(Date, `Common Name`) %>%
   mutate(credit = 1/length(unique(Observer))) %>%
   group_by(Observer, year) %>%
-  arrange(DateTime) %>%
+  arrange(Date) %>%
   mutate(cum_sum = cumsum(credit)) %>%
+  complete(
+    Date = seq.Date(
+      from = as.Date("2024-01-01"),
+      to   = Sys.Date(),
+      by   = "day"
+    )) %>%
+  mutate(year = year(Date)) %>%
+  arrange(Date) %>%
+  fill(c(cum_sum)) %>%
   group_by(Observer) 
 
 #Individuals
@@ -264,6 +284,16 @@ all_birds <- everything %>%
   filter(!year == 2023) %>%
   group_by(year, Date, Observer) %>%
   summarize(Count = sum(as.numeric(Count))) %>%
+  group_by(Observer) %>%
+  complete(
+    Date = seq.Date(
+      from = as.Date("2024-01-01"),
+      to   = Sys.Date(),
+      by   = "day"
+    ),
+    fill = list(Count = 0)
+  ) %>%
+  mutate(year = year(Date)) %>%
   arrange(Date)
 
 all_personal_birds <- all_birds %>%
@@ -290,10 +320,20 @@ all_check <- everything %>%
   filter(!year == 2023) %>%
   group_by(year, Date, Observer) %>%
   summarize(Count = sum(credit)) %>%
-  arrange(Date)
+  group_by(Observer) %>%
+  complete(
+    Date = seq.Date(
+      from = as.Date("2024-01-01"),
+      to   = Sys.Date(),
+      by   = "day"
+    ),
+    fill = list(Count = 0)
+  ) %>%
+  mutate(year = year(Date))
 
 all_personal_check <- all_check %>%
   group_by(year, Observer) %>%
+  arrange(year, Observer, Date) %>%
   mutate(cum_sum = cumsum(Count))
 
 all_collaborative_check <- all_check %>%
@@ -306,20 +346,9 @@ all_collaborative_check <- all_check %>%
 output$plot_comb_split <- renderPlotly({
   comb_plot_data <- all_collaborative %>%
     mutate(yday = yday(Date)) %>%
-    bind_rows(data.frame(yday = 365, 
-                         year = c(2024, 2025, 2024, 2025, 2024, 2025, 2024, 2025),
-                         Observer = c("Abby Lewis",
-                                      "Abby Lewis",
-                                      "Bjorn Larson",
-                                      "Bjorn Larson",
-                                      "Eric Larson",
-                                      "Eric Larson",
-                                      "Susan Lewis",
-                                      "Susan Lewis"))) %>%
     group_by(Observer, year) %>%
     arrange(Observer, year, yday) %>%
-    mutate(cum_sum = zoo::na.approx(cum_sum, rule = 2),
-           Date_stand = as.Date("2024-01-01")+days(yday-1),
+    mutate(Date_stand = as.Date("2024-01-01")+days(yday-1),
            year = as.factor(year),
            Date_stand = as.Date("2024-01-01")+days(yday-1)) 
   
@@ -329,7 +358,7 @@ output$plot_comb_split <- renderPlotly({
     egg::theme_article()+
     facet_wrap(~year, scales = "free_x")+
     ylab("Number of species")+
-    scale_fill_manual(values = c("#4ECDC4","#29363D","#E54B4B"))+
+    scale_fill_manual(values = c("#60AB9A","#18476E","#F5B905","#A355C7"))+
     scale_x_date(date_labels = "%b", 
                  expand = c(0,0))+
     theme(panel.grid.major = element_line(color = "grey95"),
@@ -341,6 +370,8 @@ output$plot_comb_split <- renderPlotly({
 
 output$plot_comb <- renderPlotly({
   comb_plot <- all_collaborative %>%
+    group_by(Date, year) %>%
+    summarize(credit = sum(credit, na.rm = T)) %>%
     group_by(year) %>%
     mutate(cum_sum = cumsum(credit)) %>%
     mutate(yday = yday(Date),
@@ -402,7 +433,7 @@ output$plot_comb_check <- renderPlotly({
 })
 
 output$plot_comp <- renderPlotly({
-  comb_plot <- all_personal %>%
+  comb_plot <- all_personal_filled %>%
     mutate(yday = yday(Date),
            Date_stand = as.Date("2024-01-01")+days(yday-1),
            year = as.factor(year)) %>%
@@ -411,7 +442,7 @@ output$plot_comp <- renderPlotly({
     egg::theme_article()+
     facet_wrap(~year, scales = "free_x")+
     ylab("Number of species")+
-    scale_color_manual(values = c("#4ECDC4","#29363D","#E54B4B", "purple"))+
+    scale_color_manual(values = c("#60AB9A","#18476E","#F5B905","#A355C7"))+
     scale_x_date(date_labels = "%b", 
                  expand = c(0,0))+
     theme(panel.grid.major = element_line(color = "grey95"),
@@ -431,7 +462,7 @@ output$plot_comp_bird <- renderPlotly({
     egg::theme_article()+
     facet_wrap(~year, scales = "free_x")+
     ylab("Number of individuals")+
-    scale_color_manual(values = c("#4ECDC4","#29363D","#E54B4B", "purple"))+
+    scale_color_manual(values = c("#60AB9A","#18476E","#F5B905","#A355C7"))+
     scale_x_date(date_labels = "%b", 
                  expand = c(0,0))+
     theme(panel.grid.major = element_line(color = "grey95"),
@@ -451,7 +482,7 @@ output$plot_comp_check <- renderPlotly({
     egg::theme_article()+
     facet_wrap(~year, scales = "free_x")+
     ylab("Number of checklists")+
-    scale_color_manual(values = c("#4ECDC4","#29363D","#E54B4B", "purple"))+
+    scale_color_manual(values = c("#60AB9A","#18476E","#F5B905","#A355C7"))+
     scale_x_date(date_labels = "%b", 
                  expand = c(0,0))+
     theme(panel.grid.major = element_line(color = "grey95"),
@@ -473,32 +504,42 @@ output$venn <- renderPlot({
   label_alpha = 0.9)
 })
 
-output$abby <- renderUI({ 
+output$unique_birds <- DT::renderDT({ 
   Abby = unique(all_personal$`Common Name`[all_personal$Observer=="Abby Lewis"])
   Other = unique(all_personal$`Common Name`[!all_personal$Observer=="Abby Lewis"])
-  Abby_text <- HTML(c("<b>Abby's unique birds<\u002fb><br>",paste(Abby[!Abby%in%Other], collapse = "<br>")))
-  Abby_text
-})
+  Abby_text <- HTML(paste(Abby[!Abby%in%Other], collapse = "<br>"))
   
-output$sue <- renderUI({ 
   Sue = unique(all_personal$`Common Name`[all_personal$Observer=="Susan Lewis"])
   Other = unique(all_personal$`Common Name`[!all_personal$Observer=="Susan Lewis"])
-  Sue_text <- HTML(c("<b>Sue's unique birds<\u002fb><br>",paste(Sue[!Sue%in%Other], collapse = "<br>")))
-  Sue_text
-})
-
-output$bjorn <- renderUI({ 
+  Sue_text <- HTML(paste(Sue[!Sue%in%Other], collapse = "<br>"))
+  
   Bjorn = unique(all_personal$`Common Name`[all_personal$Observer=="Bjorn Larson"])
   Other = unique(all_personal$`Common Name`[!all_personal$Observer=="Bjorn Larson"])
-  Bjorn_text <- HTML(c("<b>Bjorn's unique birds<\u002fb><br>",paste(Bjorn[!Bjorn%in%Other], collapse = "<br>")))
-  Bjorn_text
-})
-
-output$eric <- renderUI({ 
+  Bjorn_text <- HTML(paste(Bjorn[!Bjorn%in%Other], collapse = "<br>"))
+  
   Eric = unique(all_personal$`Common Name`[all_personal$Observer=="Eric Larson"])
   Other = unique(all_personal$`Common Name`[!all_personal$Observer=="Eric Larson"])
-  Eric_text <- HTML(c("<b>Eric's unique birds<\u002fb><br>",paste(Eric[!Eric%in%Other], collapse = "<br>")))
-  Eric_text
+  Eric_text <- HTML(paste(Eric[!Eric%in%Other], collapse = "<br>"))
+  
+  comb <- data.frame(Abby = Abby_text, 
+                     Bjorn = Bjorn_text, 
+                     Sue = Sue_text, 
+                     Eric = Eric_text)
+  DT::datatable(comb,
+                escape = FALSE,
+                rownames = FALSE,
+                options = list(
+                  dom = "t",
+                  paging = FALSE,
+                  searching = FALSE,
+                  ordering = FALSE
+                ),
+                class = "compact"
+  ) %>%
+    DT::formatStyle(
+      columns = names(comb),
+      verticalAlign = "top"
+    )
 })
 
 #Choose what to plot
@@ -567,12 +608,12 @@ ojs_define <- function(..., .session = shiny::getDefaultReactiveDomain()) {
 </p>
 <!--html_preserve-->
 <script type="application/shiny-prerendered" data-context="dependencies">
-{"type":"list","attributes":{},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","version","src","meta","script","stylesheet","head","attachment","package","all_files","pkgVersion"]},"class":{"type":"character","attributes":{},"value":["html_dependency"]}},"value":[{"type":"character","attributes":{},"value":["htmltools-fill"]},{"type":"character","attributes":{},"value":["0.5.8.1"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["file"]}},"value":[{"type":"character","attributes":{},"value":["fill"]}]},{"type":"NULL"},{"type":"NULL"},{"type":"character","attributes":{},"value":["fill.css"]},{"type":"NULL"},{"type":"NULL"},{"type":"character","attributes":{},"value":["htmltools"]},{"type":"logical","attributes":{},"value":[true]},{"type":"character","attributes":{},"value":["0.5.8.1"]}]}]}
+{"type":"list","attributes":{},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","version","src","meta","script","stylesheet","head","attachment","package","all_files","pkgVersion"]},"class":{"type":"character","attributes":{},"value":["html_dependency"]}},"value":[{"type":"character","attributes":{},"value":["htmltools-fill"]},{"type":"character","attributes":{},"value":["0.5.8.1"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["file"]}},"value":[{"type":"character","attributes":{},"value":["fill"]}]},{"type":"NULL"},{"type":"NULL"},{"type":"character","attributes":{},"value":["fill.css"]},{"type":"NULL"},{"type":"NULL"},{"type":"character","attributes":{},"value":["htmltools"]},{"type":"logical","attributes":{},"value":[true]},{"type":"character","attributes":{},"value":["0.5.8.1"]}]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","version","src","meta","script","stylesheet","head","attachment","package","all_files","pkgVersion"]},"class":{"type":"character","attributes":{},"value":["html_dependency"]}},"value":[{"type":"character","attributes":{},"value":["htmltools-fill"]},{"type":"character","attributes":{},"value":["0.5.8.1"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["file"]}},"value":[{"type":"character","attributes":{},"value":["fill"]}]},{"type":"NULL"},{"type":"NULL"},{"type":"character","attributes":{},"value":["fill.css"]},{"type":"NULL"},{"type":"NULL"},{"type":"character","attributes":{},"value":["htmltools"]},{"type":"logical","attributes":{},"value":[true]},{"type":"character","attributes":{},"value":["0.5.8.1"]}]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","version","src","meta","script","stylesheet","head","attachment","package","all_files","pkgVersion"]},"class":{"type":"character","attributes":{},"value":["html_dependency"]}},"value":[{"type":"character","attributes":{},"value":["htmlwidgets"]},{"type":"character","attributes":{},"value":["1.6.4"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["file"]}},"value":[{"type":"character","attributes":{},"value":["www"]}]},{"type":"NULL"},{"type":"character","attributes":{},"value":["htmlwidgets.js"]},{"type":"NULL"},{"type":"NULL"},{"type":"NULL"},{"type":"character","attributes":{},"value":["htmlwidgets"]},{"type":"logical","attributes":{},"value":[true]},{"type":"character","attributes":{},"value":["1.6.4"]}]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","version","src","meta","script","stylesheet","head","attachment","package","all_files","pkgVersion"]},"class":{"type":"character","attributes":{},"value":["html_dependency"]}},"value":[{"type":"character","attributes":{},"value":["datatables-css"]},{"type":"character","attributes":{},"value":["0.0.0"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["file"]}},"value":[{"type":"character","attributes":{},"value":["htmlwidgets/css"]}]},{"type":"NULL"},{"type":"NULL"},{"type":"character","attributes":{},"value":["datatables-crosstalk.css"]},{"type":"NULL"},{"type":"NULL"},{"type":"character","attributes":{},"value":["DT"]},{"type":"logical","attributes":{},"value":[true]},{"type":"character","attributes":{},"value":["0.33"]}]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","version","src","meta","script","stylesheet","head","attachment","package","all_files","pkgVersion"]},"class":{"type":"character","attributes":{},"value":["html_dependency"]}},"value":[{"type":"character","attributes":{},"value":["datatables-binding"]},{"type":"character","attributes":{},"value":["0.33"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["file"]}},"value":[{"type":"character","attributes":{},"value":["htmlwidgets"]}]},{"type":"NULL"},{"type":"character","attributes":{},"value":["datatables.js"]},{"type":"NULL"},{"type":"NULL"},{"type":"NULL"},{"type":"character","attributes":{},"value":["DT"]},{"type":"logical","attributes":{},"value":[false]},{"type":"character","attributes":{},"value":["0.33"]}]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","version","src","meta","script","stylesheet","head","attachment","package","all_files","pkgVersion"]},"class":{"type":"character","attributes":{},"value":["html_dependency"]}},"value":[{"type":"character","attributes":{},"value":["jquery"]},{"type":"character","attributes":{},"value":["3.5.1"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["file"]}},"value":[{"type":"character","attributes":{},"value":["lib/jquery"]}]},{"type":"NULL"},{"type":"character","attributes":{},"value":["jquery.min.js"]},{"type":"NULL"},{"type":"NULL"},{"type":"NULL"},{"type":"character","attributes":{},"value":["crosstalk"]},{"type":"logical","attributes":{},"value":[true]},{"type":"character","attributes":{},"value":["1.2.1"]}]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","version","src","meta","script","stylesheet","head","attachment","package","all_files","pkgVersion"]},"class":{"type":"character","attributes":{},"value":["html_dependency"]}},"value":[{"type":"character","attributes":{},"value":["crosstalk"]},{"type":"character","attributes":{},"value":["1.2.1"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["file"]}},"value":[{"type":"character","attributes":{},"value":["www"]}]},{"type":"NULL"},{"type":"character","attributes":{},"value":["js/crosstalk.min.js"]},{"type":"character","attributes":{},"value":["css/crosstalk.min.css"]},{"type":"NULL"},{"type":"NULL"},{"type":"character","attributes":{},"value":["crosstalk"]},{"type":"logical","attributes":{},"value":[true]},{"type":"character","attributes":{},"value":["1.2.1"]}]}]}
 </script>
 <!--/html_preserve-->
 <!--html_preserve-->
 <script type="application/shiny-prerendered" data-context="execution_dependencies">
-{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["packages"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["packages","version"]},"class":{"type":"character","attributes":{},"value":["data.frame"]},"row.names":{"type":"integer","attributes":{},"value":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64]}},"value":[{"type":"character","attributes":{},"value":["base","cli","compiler","data.table","datasets","digest","dplyr","evaluate","farver","fastmap","forcats","generics","ggplot2","glue","graphics","grDevices","grid","gtable","hms","htmltools","htmlwidgets","httpuv","httr","jsonlite","knitr","later","lazyeval","lifecycle","lubridate","magrittr","methods","mime","pillar","pkgconfig","plotly","promises","purrr","R6","RColorBrewer","Rcpp","readr","rlang","rmarkdown","rstudioapi","S7","scales","shiny","stats","stringi","stringr","tibble","tidyr","tidyselect","tidyverse","timechange","tools","tzdb","utils","vctrs","viridisLite","withr","xfun","xtable","yaml"]},{"type":"character","attributes":{},"value":["4.4.1","3.6.5","4.4.1","1.17.8","4.4.1","0.6.37","1.1.4","1.0.3","2.1.2","1.2.0","1.0.0","0.1.4","4.0.0","1.8.0","4.4.1","4.4.1","4.4.1","0.3.6","1.1.3","0.5.8.1","1.6.4","1.6.15","1.4.7","2.0.0","1.50","1.4.1","0.2.2","1.0.4","1.9.4","2.0.3","4.4.1","0.13","1.10.2","2.0.3","4.11.0","1.3.2","1.0.4","2.6.1","1.1-3","1.0.14","2.1.5","1.1.6","2.29","0.17.1","0.2.0","1.4.0","1.10.0","4.4.1","1.8.7","1.5.1","3.2.1","1.3.1","1.2.1","2.0.0","0.3.0","4.4.1","0.5.0","4.4.1","0.6.5","0.4.2","3.0.2","0.52","1.8-4","2.3.10"]}]}]}
+{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["packages"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["packages","version"]},"class":{"type":"character","attributes":{},"value":["data.frame"]},"row.names":{"type":"integer","attributes":{},"value":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66]}},"value":[{"type":"character","attributes":{},"value":["base","cli","compiler","crosstalk","data.table","datasets","digest","dplyr","DT","evaluate","farver","fastmap","forcats","generics","ggplot2","glue","graphics","grDevices","grid","gtable","hms","htmltools","htmlwidgets","httpuv","httr","jsonlite","knitr","later","lazyeval","lifecycle","lubridate","magrittr","methods","mime","pillar","pkgconfig","plotly","promises","purrr","R6","RColorBrewer","Rcpp","readr","rlang","rmarkdown","rstudioapi","S7","scales","shiny","stats","stringi","stringr","tibble","tidyr","tidyselect","tidyverse","timechange","tools","tzdb","utils","vctrs","viridisLite","withr","xfun","xtable","yaml"]},{"type":"character","attributes":{},"value":["4.4.1","3.6.5","4.4.1","1.2.1","1.17.8","4.4.1","0.6.37","1.1.4","0.33","1.0.3","2.1.2","1.2.0","1.0.0","0.1.4","4.0.0","1.8.0","4.4.1","4.4.1","4.4.1","0.3.6","1.1.3","0.5.8.1","1.6.4","1.6.15","1.4.7","2.0.0","1.50","1.4.1","0.2.2","1.0.4","1.9.4","2.0.3","4.4.1","0.13","1.10.2","2.0.3","4.11.0","1.3.2","1.0.4","2.6.1","1.1-3","1.0.14","2.1.5","1.1.6","2.29","0.17.1","0.2.0","1.4.0","1.10.0","4.4.1","1.8.7","1.5.1","3.2.1","1.3.1","1.2.1","2.0.0","0.3.0","4.4.1","0.5.0","4.4.1","0.6.5","0.4.2","3.0.2","0.52","1.8-4","2.3.10"]}]}]}
 </script>
 <!--/html_preserve-->
 
