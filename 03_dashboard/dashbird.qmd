@@ -93,6 +93,9 @@ fluidRow(
          uiOutput("bjorn")
   ),
   column(width = 4,
+         uiOutput("eric")
+  ),
+  column(width = 4,
          uiOutput("sue")
   ))
 ```
@@ -110,6 +113,8 @@ everything <- read_csv("https://raw.githubusercontent.com/abbylewis/dashbird/ref
   mutate(Observer = "Abby Lewis") %>%
   bind_rows(read_csv("https://raw.githubusercontent.com/abbylewis/dashbird/refs/heads/main/02_extracted_data/Bjorn_allData.csv", show_col_types = F) %>%
               mutate(Observer = "Bjorn Larson"))  %>%
+  bind_rows(read_csv("https://raw.githubusercontent.com/abbylewis/dashbird/refs/heads/main/02_extracted_data/Eric_allData.csv", show_col_types = F) %>%
+              mutate(Observer = "Eric Larson"))  %>%
   bind_rows(read_csv("https://raw.githubusercontent.com/abbylewis/dashbird/refs/heads/main/02_extracted_data/Sue_allData.csv", show_col_types = F) %>%
               mutate(Observer = "Susan Lewis")) %>%
   mutate(Date = as.Date(Date, format = "%d %b %Y")) %>%
@@ -201,11 +206,14 @@ output$plot_comb_split <- renderPlotly({
   comb_plot_data <- all_collaborative %>%
     mutate(yday = yday(Date)) %>%
     bind_rows(data.frame(yday = 365, 
-                         year = c(2024, 2025, 2024, 2025, 2024, 2025),
+                         year = c(2024, 2025, 2024, 2025, 
+                                  2024, 2025, 2024, 2025),
                          Observer = c("Abby Lewis",
                                       "Abby Lewis",
                                       "Bjorn Larson",
                                       "Bjorn Larson",
+                                      "Eric Larson",
+                                      "Eric Larson",
                                       "Susan Lewis",
                                       "Susan Lewis"))) %>%
     group_by(Observer, year) %>%
@@ -303,7 +311,7 @@ output$plot_comp <- renderPlotly({
     egg::theme_article()+
     facet_wrap(~year, scales = "free_x")+
     ylab("Number of species")+
-    scale_color_manual(values = c("#4ECDC4","#29363D","#E54B4B"))+
+    scale_color_manual(values = c("#4ECDC4","#29363D","#E54B4B", "purple"))+
     scale_x_date(date_labels = "%b", 
                  expand = c(0,0))+
     theme(panel.grid.major = element_line(color = "grey95"),
@@ -323,7 +331,7 @@ output$plot_comp_bird <- renderPlotly({
     egg::theme_article()+
     facet_wrap(~year, scales = "free_x")+
     ylab("Number of individuals")+
-    scale_color_manual(values = c("#4ECDC4","#29363D","#E54B4B"))+
+    scale_color_manual(values = c("#4ECDC4","#29363D","#E54B4B", "purple"))+
     scale_x_date(date_labels = "%b", 
                  expand = c(0,0))+
     theme(panel.grid.major = element_line(color = "grey95"),
@@ -343,7 +351,7 @@ output$plot_comp_check <- renderPlotly({
     egg::theme_article()+
     facet_wrap(~year, scales = "free_x")+
     ylab("Number of checklists")+
-    scale_color_manual(values = c("#4ECDC4","#29363D","#E54B4B"))+
+    scale_color_manual(values = c("#4ECDC4","#29363D","#E54B4B", "purple"))+
     scale_x_date(date_labels = "%b", 
                  expand = c(0,0))+
     theme(panel.grid.major = element_line(color = "grey95"),
@@ -357,6 +365,7 @@ output$venn <- renderPlot({
   ggVennDiagram::ggVennDiagram(x = list(
     Abby = unique(all_personal$`Common Name`[all_personal$Observer=="Abby Lewis"]),
     Bjorn = unique(all_personal$`Common Name`[all_personal$Observer=="Bjorn Larson"]),
+    Eric = unique(all_personal$`Common Name`[all_personal$Observer=="Eric Larson"]),
     Sue = unique(all_personal$`Common Name`[all_personal$Observer=="Susan Lewis"])
   ),
   label_geom = "text",
@@ -383,6 +392,13 @@ output$bjorn <- renderUI({
   Other = unique(all_personal$`Common Name`[!all_personal$Observer=="Bjorn Larson"])
   Bjorn_text <- HTML(c("<b>Bjorn's unique birds</b><br>",paste(Bjorn[!Bjorn%in%Other], collapse = "<br>")))
   Bjorn_text
+})
+
+output$eric <- renderUI({ 
+  Eric = unique(all_personal$`Common Name`[all_personal$Observer=="Eric Larson"])
+  Other = unique(all_personal$`Common Name`[!all_personal$Observer=="Eric Larson"])
+  Eric_text <- HTML(c("<b>Eric's unique birds</b><br>",paste(Eric[!Eric%in%Other], collapse = "<br>")))
+  Eric_text
 })
 
 #Choose what to plot
