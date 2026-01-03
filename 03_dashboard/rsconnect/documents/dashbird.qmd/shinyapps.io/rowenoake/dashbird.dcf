@@ -1,0 +1,14 @@
+name: dashbird
+title: dashbird
+username: rowenoake
+account: rowenoake
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 16367286
+bundleId: 11393975
+url: https://rowenoake.shinyapps.io/dashbird/
+version: 1
+quarto_version: 1.7.32
+quarto_engines: knitr
+asMultiple: FALSE
+asStatic: FALSE

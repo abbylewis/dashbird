@@ -36,6 +36,9 @@ server: shiny
 library(tidyverse)
 library(plotly)
 library(shiny)
+library(leaflet)
+library(htmltools)
+library(colorspace)
 
 ```
 
@@ -88,6 +91,15 @@ plotOutput('venn', height = 420)
 h3("Unique birds")
 DT::dataTableOutput("unique_birds")
 ```
+
+## Map
+
+```{r}
+#| panel: fill
+
+leafletOutput("map") 
+```
+
 
 :::
 
@@ -239,6 +251,88 @@ all_collaborative_check <- all_check %>%
   summarize(Count = sum(Count)) %>%
   group_by(year) %>%
   mutate(cum_sum = cumsum(Count))
+
+#Locations
+
+to_map <- everything %>%
+  select(Location, Latitude, Longitude, check_ID, Date, Observer)%>%
+  distinct()%>%
+  group_by(Location, Latitude, Longitude, Observer)%>%
+  summarize(n = n())%>%
+  group_by(Location, Latitude, Longitude)%>%
+  arrange(desc(n))%>%
+  summarise(
+    label_html = htmltools::HTML(paste0(
+      "<b>", first(Location), "</b>", "<br/>",
+      paste0(Observer, ": ", n, collapse = "<br/>")
+    )),
+    Observers = paste(Observer, collapse = ", "),
+    Visits = paste(n, collapse = ", "),
+    Tot_visits = 4*(sum(n)^(1/3)))
+  
+base_cols <- c(
+  "Abby Lewis"   = "#60AB9A",
+  "Bjorn Larson" = "#18476E",
+  "Eric Larson"  = "#F5B905",
+  "Susan Lewis"  = "#A355C7"
+)
+
+# Weighted circular mean for hue (degrees)
+circ_mean_deg <- function(h, w) {
+  rad <- h * pi / 180
+  x <- sum(w * cos(rad), na.rm = TRUE)
+  y <- sum(w * sin(rad), na.rm = TRUE)
+  (atan2(y, x) * 180 / pi) %% 360
+}
+
+# Mix any number of hex colors with weights in polarLUV (HCL)
+mix_hex_hcl_weighted <- function(hex_vec, w = NULL, fallback = "#808080") {
+  hex_vec <- unique(na.omit(hex_vec))
+  if (length(hex_vec) == 0) return(fallback)
+  if (length(hex_vec) == 1) return(hex_vec)
+
+  if (is.null(w)) w <- rep(1, length(hex_vec))
+  w <- suppressWarnings(as.numeric(w))
+  if (length(w) != length(hex_vec) || any(!is.finite(w))) w <- rep(1, length(hex_vec))
+  w <- pmax(w, 0)
+  if (sum(w) == 0) w <- rep(1, length(hex_vec))
+
+  # Convert to polarLUV (HCL)
+  hcl <- as(hex2RGB(hex_vec), "polarLUV")
+  df <- as.data.frame(coords(hcl))  # columns: L, C, H
+
+  # Hue may be NA when chroma ~0; weight hue by chroma to avoid nonsense
+  w_h <- w * pmax(df$C, 1e-6)
+
+  L_bar <- sum(w * df$L, na.rm = TRUE) / sum(w)
+  C_bar <- sum(w * df$C, na.rm = TRUE) / sum(w)
+  H_bar <- circ_mean_deg(df$H, w_h)
+
+  hex(polarLUV(L = L_bar, C = C_bar, H = H_bar))
+}
+
+mix_from_topcols <- function(top_obs_str, top_visits_str, base_cols, fallback = "#808080") {
+  obs <- strsplit(as.character(top_obs_str), "\\s*,\\s*")[[1]]
+  obs <- obs[nzchar(obs)]
+  obs <- obs[obs %in% names(base_cols)]
+  if (length(obs) == 0) return(fallback)
+  if (length(obs) == 1) return(unname(base_cols[obs]))
+
+  w <- strsplit(as.character(top_visits_str), "\\s*,\\s*")[[1]]
+  w <- suppressWarnings(as.numeric(w))
+  w <- w[seq_len(min(length(w), length(obs)))]
+
+  cols <- unname(base_cols[obs])
+  mix_hex_hcl_weighted(cols, w = w, fallback = fallback)
+}
+
+to_map$marker_col <- mapply(
+  mix_from_topcols,
+  to_map$Observers,
+  to_map$Visits,
+  MoreArgs = list(base_cols = base_cols),
+  USE.NAMES = FALSE
+)
 
 #Code for plots
 output$plot_comb_split <- renderPlotly({
@@ -461,5 +555,31 @@ output$selected_comb <- renderUI({
   }else if (input$to_plot == "Checklists") {
     plotlyOutput("plot_comb_check")
   }
+})
+
+pal <- colorFactor(c("#60AB9A","#18476E","#F5B905","#A355C7"), domain = c("Abby Lewis", "Bjorn Larson", "Eric Larson", "Susan Lewis"))
+
+output$map <- renderLeaflet({ 
+  leaflet(to_map) %>%
+    addTiles() %>%
+    addCircleMarkers(
+      lat = ~Latitude, 
+      lng = ~Longitude, 
+      radius = ~Tot_visits,
+      color = ~marker_col,
+      fillColor = ~marker_col, 
+      fillOpacity = 0.5,
+      
+      label = ~label_html,
+      labelOptions = labelOptions(
+        direction = "auto",
+        opacity = 0.9,
+        textsize = "13px",
+        style = list(
+          "background-color" = "white", 
+          "padding" = "6px")
+      )
+    )
+
 })
 ```
