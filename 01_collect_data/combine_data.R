@@ -1,3 +1,5 @@
+source("01_collect_data/parse_json.R")
+
 everything <- read_csv("02_extracted_data/Abby_allData.csv", show_col_types = F) %>%
   mutate(Observer = "Abby Lewis") %>%
   bind_rows(read_csv("02_extracted_data/Bjorn_allData.csv", show_col_types = F) %>%

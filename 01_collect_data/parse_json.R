@@ -1,3 +1,5 @@
+install.packages("jsonlite")
+install.packages("rebird")
 library(jsonlite)
 library(rebird)
 

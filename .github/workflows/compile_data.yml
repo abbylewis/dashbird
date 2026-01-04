@@ -1,0 +1,34 @@
+on:
+  workflow_dispatch:
+  schedule:
+  - cron: "0 1 * * *"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: rocker/tidyverse:4.2
+    permissions:
+      contents: write
+    
+    steps:
+      - run: git config --system --add safe.directory '*'
+      
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Combine data
+        run: |
+          Rscript combine_data.R
+        env:
+          ebird_key: ${{ secrets.EBIRD_API_KEY }}
+        
+      - name: Commit and push
+        run: |
+          git config --global user.name 'abbylewis'
+          git config --global user.email 'aslewis@vt.edu'
+          git add .
+          git commit -m "Automated update" || echo "No changes to commit"
+          git push
