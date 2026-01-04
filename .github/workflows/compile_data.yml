@@ -1,3 +1,5 @@
+name: compile data
+
 on:
   workflow_dispatch:
   schedule:
@@ -21,7 +23,7 @@ jobs:
 
       - name: Combine data
         run: |
-          Rscript combine_data.R
+          Rscript 01_collect_data/combine_data.R
         env:
           ebird_key: ${{ secrets.EBIRD_API_KEY }}
         
