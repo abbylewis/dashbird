@@ -40,18 +40,33 @@ library(leaflet)
 library(htmltools)
 library(colorspace)
 
+# For plots
+base_cols <- c(
+  "Abby Lewis"   = "#60AB9A",
+  "Bjorn Larson" = "#18476E",
+  "Eric Larson"  = "#F5B905",
+  "Susan Lewis"  = "#A355C7"
+)
+
+year_cols <- c(
+  "2024" = "#4ECDC4",
+  "2025" = "#29363D",
+  "2026" = "#E54B4B"
+)
 ```
 
 ::: {.row}
 
-::: {.column width="23%"}
+::: {.panel-tabset}
+
+## Collaborative
 
 ```{r}
 #| panel: sidebar
 
+uiOutput('totals')
 h4("Plot Specifications")
-br()
-radioButtons(inputId = "to_plot",
+radioButtons(inputId = "to_plot_comb",
              label = "To plot:",
              choices = c("Species",
                          "Individuals",
@@ -63,20 +78,24 @@ radioButtons(inputId = "contrib",
                          "Yes"))
 ```
 
-::: 
-
-::: {.column width="73%"}
-
-::: {.panel-tabset}
-
-## Collaborative
-
 ```{r}
 #| panel: fill
 uiOutput('selected_comb', height = 420)
 ```
 
 ## Competitive
+
+```{r}
+#| panel: sidebar
+
+uiOutput('leaderboard')
+h4("Plot Specifications")
+radioButtons(inputId = "to_plot_comp",
+             label = "To plot:",
+             choices = c("Species",
+                         "Individuals",
+                         "Checklists"))
+```
 
 ```{r}
 #| panel: fill
@@ -100,8 +119,6 @@ DT::dataTableOutput("unique_birds")
 leafletOutput("map") 
 ```
 
-
-:::
 
 :::
 
@@ -269,13 +286,6 @@ to_map <- everything %>%
     Observers = paste(Observer, collapse = ", "),
     Visits = paste(n, collapse = ", "),
     Tot_visits = 4*(sum(n)^(1/3)))
-  
-base_cols <- c(
-  "Abby Lewis"   = "#60AB9A",
-  "Bjorn Larson" = "#18476E",
-  "Eric Larson"  = "#F5B905",
-  "Susan Lewis"  = "#A355C7"
-)
 
 # Weighted circular mean for hue (degrees)
 circ_mean_deg <- function(h, w) {
@@ -350,7 +360,7 @@ output$plot_comb_split <- renderPlotly({
     egg::theme_article()+
     facet_wrap(~year, scales = "free_x")+
     ylab("Number of species")+
-    scale_fill_manual(values = c("#60AB9A","#18476E","#F5B905","#A355C7"))+
+    scale_fill_manual(values = base_cols)+
     scale_x_date(date_labels = "%b", 
                  expand = c(0,0))+
     theme(panel.grid.major = element_line(color = "grey95"),
@@ -374,7 +384,7 @@ output$plot_comb <- renderPlotly({
     egg::theme_article()+
     #facet_wrap(~year, scales = "free_x")+
     ylab("Number of species")+
-    scale_color_manual(values = c("#4ECDC4","#29363D","#E54B4B"))+
+    scale_color_manual(values = year_cols)+
     scale_x_date(date_labels = "%b", 
                  expand = c(0,0))+
     theme(panel.grid.major = element_line(color = "grey95"),
@@ -394,7 +404,7 @@ output$plot_comb_bird <- renderPlotly({
     egg::theme_article()+
     #facet_wrap(~year, scales = "free_x")+
     ylab("Number of individuals")+
-    scale_color_manual(values = c("#4ECDC4","#29363D","#E54B4B"))+
+    scale_color_manual(values = year_cols)+
     scale_x_date(date_labels = "%b", 
                  expand = c(0,0))+
     theme(panel.grid.major = element_line(color = "grey95"),
@@ -414,7 +424,7 @@ output$plot_comb_check <- renderPlotly({
     egg::theme_article()+
     #facet_wrap(~year, scales = "free_x")+
     ylab("Number of checklists")+
-    scale_color_manual(values = c("#4ECDC4","#29363D","#E54B4B"))+
+    scale_color_manual(values = year_cols)+
     scale_x_date(date_labels = "%b", 
                  expand = c(0,0))+
     theme(panel.grid.major = element_line(color = "grey95"),
@@ -434,7 +444,7 @@ output$plot_comp <- renderPlotly({
     egg::theme_article()+
     facet_wrap(~year, scales = "free_x")+
     ylab("Number of species")+
-    scale_color_manual(values = c("#60AB9A","#18476E","#F5B905","#A355C7"))+
+    scale_color_manual(values = base_cols)+
     scale_x_date(date_labels = "%b", 
                  expand = c(0,0))+
     theme(panel.grid.major = element_line(color = "grey95"),
@@ -454,7 +464,7 @@ output$plot_comp_bird <- renderPlotly({
     egg::theme_article()+
     facet_wrap(~year, scales = "free_x")+
     ylab("Number of individuals")+
-    scale_color_manual(values = c("#60AB9A","#18476E","#F5B905","#A355C7"))+
+    scale_color_manual(values = base_cols)+
     scale_x_date(date_labels = "%b", 
                  expand = c(0,0))+
     theme(panel.grid.major = element_line(color = "grey95"),
@@ -474,7 +484,7 @@ output$plot_comp_check <- renderPlotly({
     egg::theme_article()+
     facet_wrap(~year, scales = "free_x")+
     ylab("Number of checklists")+
-    scale_color_manual(values = c("#60AB9A","#18476E","#F5B905","#A355C7"))+
+    scale_color_manual(values = base_cols)+
     scale_x_date(date_labels = "%b", 
                  expand = c(0,0))+
     theme(panel.grid.major = element_line(color = "grey95"),
@@ -536,28 +546,59 @@ output$unique_birds <- DT::renderDT({
 
 #Choose what to plot
 output$selected_comp <- renderUI({
-  if (input$to_plot == "Species") {
+  if (input$to_plot_comp == "Species") {
     plotlyOutput("plot_comp")
-  } else if (input$to_plot == "Individuals") {
+  } else if (input$to_plot_comp == "Individuals") {
     plotlyOutput("plot_comp_bird")
-  } else if (input$to_plot == "Checklists") {
+  } else if (input$to_plot_comp == "Checklists") {
     plotlyOutput("plot_comp_check")
   }
 })
 
 output$selected_comb <- renderUI({
-  if(input$to_plot == "Species") {
+  if(input$to_plot_comb == "Species") {
     if(input$contrib == "Yes") {
       plotlyOutput("plot_comb_split")
     }else{plotlyOutput("plot_comb")}
-  }else if (input$to_plot == "Individuals") {
+  }else if (input$to_plot_comb == "Individuals") {
     plotlyOutput("plot_comb_bird")
-  }else if (input$to_plot == "Checklists") {
+  }else if (input$to_plot_comb == "Checklists") {
     plotlyOutput("plot_comb_check")
   }
 })
 
-pal <- colorFactor(c("#60AB9A","#18476E","#F5B905","#A355C7"), domain = c("Abby Lewis", "Bjorn Larson", "Eric Larson", "Susan Lewis"))
+# Text outputs
+output$totals <- renderText({
+  year <- year(Sys.Date())
+  species <- length(unique(all_personal$`Common Name`[all_personal$year == year]))
+  individuals <- sum(all_collaborative_birds$Count[all_collaborative_birds$year == year])
+  checklists <- sum(all_collaborative_check$Count[all_collaborative_check$year == year])
+  output <- paste("<h4>",year," totals</h4><ul><li><b>",
+                  species,"</b> species<br></li><li><b>",
+                  individuals,"</b> individuals</li><li><b>",
+                  checklists,"</b> checklists</li></ul>"
+                  )
+})
+
+output$leaderboard <- renderText({
+  year <- year(Sys.Date())
+  abby <- length(unique(all_personal$`Common Name`[
+    all_personal$year == year & all_personal$Observer == "Abby Lewis"]))
+  bjorn <- length(unique(all_personal$`Common Name`[
+    all_personal$year == year & all_personal$Observer == "Bjorn Larson"]))
+  sue <- length(unique(all_personal$`Common Name`[
+    all_personal$year == year & all_personal$Observer == "Susan Lewis"]))
+  eric <- length(unique(all_personal$`Common Name`[
+    all_personal$year == year & all_personal$Observer == "Eric Larson"]))
+  output <- paste("<h4>",year," species</h4><ul><li>Abby: <b>",
+                  abby,"</b> species<br></li><li>Bjorn: <b>",
+                  bjorn,"</b> species</li><li>Sue: <b>",
+                  sue,"</b> species</li><li>Eric: <b>",
+                  eric, "</b> species</li></ul>"
+                  )
+})
+
+pal <- colorFactor(base_cols, domain = c("Abby Lewis", "Bjorn Larson", "Eric Larson", "Susan Lewis"))
 
 output$map <- renderLeaflet({ 
   leaflet(to_map) %>%
