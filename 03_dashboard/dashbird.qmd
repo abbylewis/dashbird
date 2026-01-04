@@ -53,6 +53,11 @@ year_cols <- c(
   "2025" = "#29363D",
   "2026" = "#E54B4B"
 )
+
+theme_dashbird <- egg::theme_article()+
+  theme(panel.grid.major = element_line(color = "grey95"),
+        axis.title.x = element_blank(),
+        panel.border = element_rect(color = "grey20"))
 ```
 
 ::: {.row}
@@ -127,20 +132,7 @@ leafletOutput("map")
 ```{r}
 #| context: server
 
-everything <- read_csv("https://raw.githubusercontent.com/abbylewis/dashbird/refs/heads/main/02_extracted_data/Abby_allData.csv", show_col_types = F) %>%
-  mutate(Observer = "Abby Lewis") %>%
-  bind_rows(read_csv("https://raw.githubusercontent.com/abbylewis/dashbird/refs/heads/main/02_extracted_data/Bjorn_allData.csv", show_col_types = F) %>%
-              mutate(Observer = "Bjorn Larson"))  %>%
-  bind_rows(read_csv("https://raw.githubusercontent.com/abbylewis/dashbird/refs/heads/main/02_extracted_data/Eric_allData.csv", show_col_types = F) %>%
-              mutate(Observer = "Eric Larson"))  %>%
-  bind_rows(read_csv("https://raw.githubusercontent.com/abbylewis/dashbird/refs/heads/main/02_extracted_data/Sue_allData.csv", show_col_types = F) %>%
-              mutate(Observer = "Susan Lewis")) %>%
-  mutate(Date = as.Date(Date, format = "%d %b %Y")) %>%
-  arrange(Date) %>%
-  mutate(check_ID = paste(Date, Time, Latitude, Longitude),
-         `Common Name` = sub(" \\(.+\\)", "", `Common Name`)) %>%
-  filter(!grepl("sp.", `Common Name`),
-         !grepl("/", `Common Name`))
+everything <- read_csv("https://raw.githubusercontent.com/abbylewis/dashbird/refs/heads/main/02_extracted_data/for_dashbird.csv", show_col_types = F)
 
 #Species
 all <- everything %>%
@@ -357,15 +349,12 @@ output$plot_comb_split <- renderPlotly({
   comb_plot <- comb_plot_data %>%
     ggplot(aes(x = Date_stand, y = cum_sum, fill = Observer))+
     geom_area()+
-    egg::theme_article()+
     facet_wrap(~year, scales = "free_x")+
     ylab("Number of species")+
     scale_fill_manual(values = base_cols)+
     scale_x_date(date_labels = "%b", 
                  expand = c(0,0))+
-    theme(panel.grid.major = element_line(color = "grey95"),
-          axis.title.x = element_blank(),
-          panel.border = element_rect(color = "grey20"))
+    theme_dashbird
   
   plotly::ggplotly(comb_plot, tooltip = c("fill"))
 })
@@ -381,15 +370,12 @@ output$plot_comb <- renderPlotly({
            year = as.factor(year)) %>%
     ggplot(aes(x = Date_stand, y = cum_sum, color = year))+
     geom_line()+
-    egg::theme_article()+
     #facet_wrap(~year, scales = "free_x")+
     ylab("Number of species")+
     scale_color_manual(values = year_cols)+
     scale_x_date(date_labels = "%b", 
                  expand = c(0,0))+
-    theme(panel.grid.major = element_line(color = "grey95"),
-          axis.title.x = element_blank(),
-          panel.border = element_rect(color = "grey20"))
+    theme_dashbird
   
   plotly::ggplotly(comb_plot)
 })
@@ -401,15 +387,12 @@ output$plot_comb_bird <- renderPlotly({
            year = as.factor(year)) %>%
     ggplot(aes(x = Date_stand, y = cum_sum, color = year))+
     geom_line()+
-    egg::theme_article()+
     #facet_wrap(~year, scales = "free_x")+
     ylab("Number of individuals")+
     scale_color_manual(values = year_cols)+
     scale_x_date(date_labels = "%b", 
                  expand = c(0,0))+
-    theme(panel.grid.major = element_line(color = "grey95"),
-          axis.title.x = element_blank(),
-          panel.border = element_rect(color = "grey20"))
+    theme_dashbird
   
   plotly::ggplotly(comb_plot)
 })
@@ -421,15 +404,12 @@ output$plot_comb_check <- renderPlotly({
            year = as.factor(year)) %>%
     ggplot(aes(x = Date_stand, y = cum_sum, color = year))+
     geom_line()+
-    egg::theme_article()+
     #facet_wrap(~year, scales = "free_x")+
     ylab("Number of checklists")+
     scale_color_manual(values = year_cols)+
     scale_x_date(date_labels = "%b", 
                  expand = c(0,0))+
-    theme(panel.grid.major = element_line(color = "grey95"),
-          axis.title.x = element_blank(),
-          panel.border = element_rect(color = "grey20"))
+    theme_dashbird
   
   plotly::ggplotly(comb_plot)
 })
@@ -441,15 +421,12 @@ output$plot_comp <- renderPlotly({
            year = as.factor(year)) %>%
     ggplot(aes(x = Date_stand, y = cum_sum, color = Observer))+
     geom_line()+
-    egg::theme_article()+
     facet_wrap(~year, scales = "free_x")+
     ylab("Number of species")+
     scale_color_manual(values = base_cols)+
     scale_x_date(date_labels = "%b", 
                  expand = c(0,0))+
-    theme(panel.grid.major = element_line(color = "grey95"),
-          axis.title.x = element_blank(),
-          panel.border = element_rect(color = "grey20"))
+    theme_dashbird
   
   plotly::ggplotly(comb_plot)
 })
@@ -461,15 +438,12 @@ output$plot_comp_bird <- renderPlotly({
            year = as.factor(year)) %>%
     ggplot(aes(x = Date_stand, y = cum_sum, color = Observer))+
     geom_line()+
-    egg::theme_article()+
     facet_wrap(~year, scales = "free_x")+
     ylab("Number of individuals")+
     scale_color_manual(values = base_cols)+
     scale_x_date(date_labels = "%b", 
                  expand = c(0,0))+
-    theme(panel.grid.major = element_line(color = "grey95"),
-          axis.title.x = element_blank(),
-          panel.border = element_rect(color = "grey20"))
+    theme_dashbird
   
   plotly::ggplotly(comb_plot)
 })
@@ -481,15 +455,12 @@ output$plot_comp_check <- renderPlotly({
            year = as.factor(year)) %>%
     ggplot(aes(x = Date_stand, y = cum_sum, color = Observer))+
     geom_line()+
-    egg::theme_article()+
     facet_wrap(~year, scales = "free_x")+
     ylab("Number of checklists")+
     scale_color_manual(values = base_cols)+
     scale_x_date(date_labels = "%b", 
                  expand = c(0,0))+
-    theme(panel.grid.major = element_line(color = "grey95"),
-          axis.title.x = element_blank(),
-          panel.border = element_rect(color = "grey20"))
+    theme_dashbird
   
   plotly::ggplotly(comb_plot)
 })
@@ -503,7 +474,8 @@ output$venn <- renderPlot({
   ),
   label_geom = "text",
   label_color="white",
-  label_alpha = 0.9)
+  label_alpha = 0.9,
+  set_color = base_cols)
 })
 
 output$unique_birds <- DT::renderDT({ 
@@ -590,11 +562,11 @@ output$leaderboard <- renderText({
     all_personal$year == year & all_personal$Observer == "Susan Lewis"]))
   eric <- length(unique(all_personal$`Common Name`[
     all_personal$year == year & all_personal$Observer == "Eric Larson"]))
-  output <- paste("<h4>",year," species</h4><ul><li>Abby: <b>",
-                  abby,"</b> species<br></li><li>Bjorn: <b>",
-                  bjorn,"</b> species</li><li>Sue: <b>",
-                  sue,"</b> species</li><li>Eric: <b>",
-                  eric, "</b> species</li></ul>"
+  output <- paste("<h4>",year," species</h4><ul><li>Abby: <span style='color:#60AB9A; font-weight:bold;'>",
+                  abby," species</span><br></li><li>Bjorn: <span style='color:#18476E; font-weight:bold;'>",
+                  bjorn," species</span></li><li>Sue: <span style='color:#A355C7; font-weight:bold;'>",
+                  sue," species</span></li><li>Eric: <span style='color:#F5B905; font-weight:bold;'>",
+                  eric, " species</span></li></ul>"
                   )
 })
 
