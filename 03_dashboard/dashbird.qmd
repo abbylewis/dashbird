@@ -475,9 +475,7 @@ output$plot_comp_check <- renderPlotly({
 })
 
 output$venn <- renderPlot({
-  years <- ifelse(input$venn_years == "All",
-                  2024:year(Sys.Date()),
-                  as.numeric(input$venn_years))
+  years <- if(input$venn_years == "All"){2024:year(Sys.Date())} else {as.numeric(input$venn_years)}
   venn_data <- all_personal %>%
     filter(year %in% years)
   ggVennDiagram::ggVennDiagram(x = list(
@@ -493,9 +491,7 @@ output$venn <- renderPlot({
 })
 
 output$unique_birds <- DT::renderDT({ 
-  years <- ifelse(input$venn_years == "All",
-                  2024:year(Sys.Date()),
-                  as.numeric(input$venn_years))
+  years <- if(input$venn_years == "All"){2024:year(Sys.Date())} else {as.numeric(input$venn_years)}
   venn_data <- all_personal %>%
     filter(year %in% years)
   
