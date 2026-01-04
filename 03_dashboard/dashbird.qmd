@@ -349,7 +349,7 @@ output$plot_comb_split <- renderPlotly({
   comb_plot <- comb_plot_data %>%
     ggplot(aes(x = Date_stand, y = cum_sum, fill = Observer))+
     geom_area()+
-    facet_wrap(~year, scales = "free_x")+
+    facet_wrap(~year)+
     ylab("Number of species")+
     scale_fill_manual(values = base_cols)+
     scale_x_date(date_labels = "%b", 
@@ -370,7 +370,6 @@ output$plot_comb <- renderPlotly({
            year = as.factor(year)) %>%
     ggplot(aes(x = Date_stand, y = cum_sum, color = year))+
     geom_line()+
-    #facet_wrap(~year, scales = "free_x")+
     ylab("Number of species")+
     scale_color_manual(values = year_cols)+
     scale_x_date(date_labels = "%b", 
@@ -387,7 +386,6 @@ output$plot_comb_bird <- renderPlotly({
            year = as.factor(year)) %>%
     ggplot(aes(x = Date_stand, y = cum_sum, color = year))+
     geom_line()+
-    #facet_wrap(~year, scales = "free_x")+
     ylab("Number of individuals")+
     scale_color_manual(values = year_cols)+
     scale_x_date(date_labels = "%b", 
@@ -404,7 +402,6 @@ output$plot_comb_check <- renderPlotly({
            year = as.factor(year)) %>%
     ggplot(aes(x = Date_stand, y = cum_sum, color = year))+
     geom_line()+
-    #facet_wrap(~year, scales = "free_x")+
     ylab("Number of checklists")+
     scale_color_manual(values = year_cols)+
     scale_x_date(date_labels = "%b", 
@@ -421,7 +418,7 @@ output$plot_comp <- renderPlotly({
            year = as.factor(year)) %>%
     ggplot(aes(x = Date_stand, y = cum_sum, color = Observer))+
     geom_line()+
-    facet_wrap(~year, scales = "free_x")+
+    facet_wrap(~year)+
     ylab("Number of species")+
     scale_color_manual(values = base_cols)+
     scale_x_date(date_labels = "%b", 
@@ -438,7 +435,7 @@ output$plot_comp_bird <- renderPlotly({
            year = as.factor(year)) %>%
     ggplot(aes(x = Date_stand, y = cum_sum, color = Observer))+
     geom_line()+
-    facet_wrap(~year, scales = "free_x")+
+    facet_wrap(~year)+
     ylab("Number of individuals")+
     scale_color_manual(values = base_cols)+
     scale_x_date(date_labels = "%b", 
@@ -455,7 +452,7 @@ output$plot_comp_check <- renderPlotly({
            year = as.factor(year)) %>%
     ggplot(aes(x = Date_stand, y = cum_sum, color = Observer))+
     geom_line()+
-    facet_wrap(~year, scales = "free_x")+
+    facet_wrap(~year)+
     ylab("Number of checklists")+
     scale_color_manual(values = base_cols)+
     scale_x_date(date_labels = "%b", 

@@ -1,0 +1,55 @@
+library(jsonlite)
+library(rebird)
+
+parse_json_ebird <- function(file) {
+  json_data <- fromJSON(file)
+  birds <- json_data$obs
+  loc_data <- ebirdregion(json_data$locId, key = Sys.getenv("ebird_key"))
+  out <- tibble(
+    `Submission ID` = json_data$subId,
+    `Common Name` = identify_common_name(birds$speciesCode),
+    `Scientific Name` = identify_scientific_name(birds$speciesCode),
+    Count = birds$howManyStr,
+    `Location ID` = json_data$locId,
+    Location = ifelse(nrow(loc_data)>0, 
+                      unique(loc_data$locName),
+                      NA),
+    Latitude = ifelse(nrow(loc_data)>0, 
+                      unique(loc_data$lat),
+                      NA),
+    Longitude = ifelse(nrow(loc_data)>0, 
+                       unique(loc_data$lng),
+                       NA),
+    Date = as.Date(json_data$obsDt),
+    Time = format(as.POSIXct(json_data$obsDt), "%H:%M:%S"),
+    `Duration (Min)` = ifelse("durationHrs" %in% names(json_data), 
+                              json_data$durationHrs*60,
+                              NA),
+    Observer = json_data$userDisplayName,
+    `All Obs Reported` = json_data$allObsReported,
+    `Distance Traveled (km)` = ifelse("effortDistanceKm" %in% names(json_data), 
+                                      json_data$effortDistanceKm,
+                                      NA),
+    `Number of Observers` = json_data$numObservers
+  )
+  return(out)
+}
+
+tax <- ebirdtaxonomy()
+identify_common_name <- function(species_codes){
+  out <- c()
+  for(code in species_codes){
+    cn <- tax$comName[tax$speciesCode==code]
+    out <- c(out, cn)
+  }
+  return(out)
+}
+
+identify_scientific_name <- function(species_codes){
+  out <- c()
+  for(code in species_codes){
+    sn <- tax$sciName[tax$speciesCode==code]
+    out <- c(out, sn)
+  }
+  return(out)
+}
