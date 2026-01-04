@@ -1,6 +1,7 @@
 name: collect checklists
 
 on:
+  workflow_dispatch:
   schedule:
     - cron: '47 0 * * *'
 
