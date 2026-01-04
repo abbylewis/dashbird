@@ -1,0 +1,42 @@
+name: collect checklists
+
+on:
+  schedule:
+    - cron: '47 0 * * *'
+
+jobs:
+  collect_checklists:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          cache: 'pip'
+
+      - name: load dropbox token
+        uses: mobiledevops/secret-to-file-action@v1
+        with:
+          base64-encoded-secret: ${{ secrets.DROPBOX }}
+          filename: "tokenfile.RDS"
+          
+      - name: Set up dependencies
+        run: |
+          pip install -r requirements.txt
+          playwright install
+
+      - name: Run script to collect recent checklists
+        run: python 01_collect_data/collect_checklists.py
+        env:
+          EBIRD_PW: ${{ secrets.EBIRD_PW }}
+          EBIRD_API_KEY: ${{ secrets.EBIRD_API_KEY }}
+        
+      - name: Commit and push new checklists, if there are any
+        run: |
+          git config --global user.name 'oatnewguo'
+          git config --global user.email 'oatnewguo@gmail.com'
+          git add .
+          git commit -m 'Automated checklist update' || echo 'No changes to commit'
+          git push
