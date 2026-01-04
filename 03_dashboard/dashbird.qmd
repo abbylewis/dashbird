@@ -110,6 +110,18 @@ uiOutput('selected_comp', height = 420)
 ## Venn
 
 ```{r}
+#| panel: sidebar
+
+h4("Plot Specifications")
+radioButtons(inputId = "venn_years",
+             label = "To plot:",
+             choices = c("All",
+                         "2026",
+                         "2025",
+                         "2024"))
+```
+
+```{r}
 #| panel: fill
 plotOutput('venn', height = 420)
 h3("Unique birds")
@@ -463,11 +475,16 @@ output$plot_comp_check <- renderPlotly({
 })
 
 output$venn <- renderPlot({
+  years <- ifelse(input$venn_years == "All",
+                  2024:year(Sys.Date()),
+                  as.numeric(input$venn_years))
+  venn_data <- all_personal %>%
+    filter(year %in% years)
   ggVennDiagram::ggVennDiagram(x = list(
-    Abby = unique(all_personal$`Common Name`[all_personal$Observer=="Abby Lewis"]),
-    Bjorn = unique(all_personal$`Common Name`[all_personal$Observer=="Bjorn Larson"]),
-    Eric = unique(all_personal$`Common Name`[all_personal$Observer=="Eric Larson"]),
-    Sue = unique(all_personal$`Common Name`[all_personal$Observer=="Susan Lewis"])
+    Abby = unique(venn_data$`Common Name`[venn_data$Observer=="Abby Lewis"]),
+    Bjorn = unique(venn_data$`Common Name`[venn_data$Observer=="Bjorn Larson"]),
+    Eric = unique(venn_data$`Common Name`[venn_data$Observer=="Eric Larson"]),
+    Sue = unique(venn_data$`Common Name`[venn_data$Observer=="Susan Lewis"])
   ),
   label_geom = "text",
   label_color="white",
@@ -476,20 +493,26 @@ output$venn <- renderPlot({
 })
 
 output$unique_birds <- DT::renderDT({ 
-  Abby = unique(all_personal$`Common Name`[all_personal$Observer=="Abby Lewis"])
-  Other = unique(all_personal$`Common Name`[!all_personal$Observer=="Abby Lewis"])
+  years <- ifelse(input$venn_years == "All",
+                  2024:year(Sys.Date()),
+                  as.numeric(input$venn_years))
+  venn_data <- all_personal %>%
+    filter(year %in% years)
+  
+  Abby = unique(venn_data$`Common Name`[venn_data$Observer=="Abby Lewis"])
+  Other = unique(venn_data$`Common Name`[!venn_data$Observer=="Abby Lewis"])
   Abby_text <- HTML(paste(Abby[!Abby%in%Other], collapse = "<br>"))
   
-  Sue = unique(all_personal$`Common Name`[all_personal$Observer=="Susan Lewis"])
-  Other = unique(all_personal$`Common Name`[!all_personal$Observer=="Susan Lewis"])
+  Sue = unique(venn_data$`Common Name`[venn_data$Observer=="Susan Lewis"])
+  Other = unique(venn_data$`Common Name`[!venn_data$Observer=="Susan Lewis"])
   Sue_text <- HTML(paste(Sue[!Sue%in%Other], collapse = "<br>"))
   
-  Bjorn = unique(all_personal$`Common Name`[all_personal$Observer=="Bjorn Larson"])
-  Other = unique(all_personal$`Common Name`[!all_personal$Observer=="Bjorn Larson"])
+  Bjorn = unique(venn_data$`Common Name`[venn_data$Observer=="Bjorn Larson"])
+  Other = unique(venn_data$`Common Name`[!venn_data$Observer=="Bjorn Larson"])
   Bjorn_text <- HTML(paste(Bjorn[!Bjorn%in%Other], collapse = "<br>"))
   
-  Eric = unique(all_personal$`Common Name`[all_personal$Observer=="Eric Larson"])
-  Other = unique(all_personal$`Common Name`[!all_personal$Observer=="Eric Larson"])
+  Eric = unique(venn_data$`Common Name`[venn_data$Observer=="Eric Larson"])
+  Other = unique(venn_data$`Common Name`[!venn_data$Observer=="Eric Larson"])
   Eric_text <- HTML(paste(Eric[!Eric%in%Other], collapse = "<br>"))
   
   comb <- data.frame(Abby = Abby_text, 
