@@ -248,12 +248,18 @@ ul.task-list li input[type="checkbox"] {
 <div class="cell-output-display">
 <div class="shiny-plot-output html-fill-item" id="venn" style="width:100%;height:420px;"></div>
 </div>
+</div>
+</div>
+</div>
+</div>
+<div class="panel-fill panel-grid">
+<div class="g-col-24">
+<div class="cell panel-fill">
 <div class="cell-output-display">
 <h3 class="anchored">Unique birds</h3>
 </div>
 <div class="cell-output-display">
 <div class="datatables html-widget html-widget-output shiny-report-size html-fill-item" id="unique_birds" style="width:100%;height:auto;"></div>
-</div>
 </div>
 </div>
 </div>
@@ -650,9 +656,7 @@ output$venn <- renderPlot({
 })
 
 output$unique_birds <- DT::renderDT({ 
-  years <- ifelse(input$venn_years == "All",
-                  2024:year(Sys.Date()),
-                  as.numeric(input$venn_years))
+  years <- if(input$venn_years == "All"){2024:year(Sys.Date())} else {as.numeric(input$venn_years)}
   venn_data <- all_personal %>%
     filter(year %in% years)
   

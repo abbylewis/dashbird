@@ -124,6 +124,10 @@ radioButtons(inputId = "venn_years",
 ```{r}
 #| panel: fill
 plotOutput('venn', height = 420)
+```
+
+```{r}
+#| panel: fill
 h3("Unique birds")
 DT::dataTableOutput("unique_birds")
 ```
