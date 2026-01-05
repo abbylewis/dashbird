@@ -16,12 +16,6 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           cache: 'pip'
-
-      - name: load dropbox token
-        uses: mobiledevops/secret-to-file-action@v1
-        with:
-          base64-encoded-secret: ${{ secrets.DROPBOX }}
-          filename: "tokenfile.RDS"
           
       - name: Set up dependencies
         run: |
