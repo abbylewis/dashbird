@@ -166,7 +166,7 @@ everything <- read_csv("https://raw.githubusercontent.com/abbylewis/dashbird/ref
 all <- everything %>%
   select(`Common Name`, Date, Observer, Time) %>%
   mutate(year = year(Date)) %>%
-  filter(!year == 2023) %>%
+  filter(year >= 2024) %>%
   arrange(Date) 
 
 all_personal <- all %>%
@@ -228,7 +228,7 @@ all_birds <- everything %>%
   arrange(Date) %>%
   select(Count, Date, Observer) %>%
   mutate(year = year(Date)) %>%
-  filter(!year == 2023) %>%
+  filter(year >= 2024) %>%
   group_by(year, Date, Observer) %>%
   summarize(Count = sum(as.numeric(Count))) %>%
   group_by(Observer) %>%
@@ -264,7 +264,7 @@ all_check <- everything %>%
   arrange(Date) %>%
   select(check_ID, Date, Observer, credit) %>%
   mutate(year = year(Date)) %>%
-  filter(!year == 2023) %>%
+  filter(year >= 2024) %>%
   group_by(year, Date, Observer) %>%
   summarize(Count = sum(credit)) %>%
   group_by(Observer) %>%
@@ -558,7 +558,7 @@ output$selected_comb <- renderUI({
 output$totals <- renderText({
   year <- year(Sys.Date())
   species <- length(unique(all_personal$`Common Name`[all_personal$year == year]))
-  individuals <- sum(all_collaborative_birds$Count[all_collaborative_birds$year == year])
+  individuals <- ceiling(sum(all_collaborative_birds$Count[all_collaborative_birds$year == year]))
   checklists <- sum(all_collaborative_check$Count[all_collaborative_check$year == year])
   output <- paste("<h4>",year," totals</h4><ul><li><b>",
                   species,"</b> species<br></li><li><b>",
