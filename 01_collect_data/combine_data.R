@@ -1,6 +1,7 @@
 library(tidyverse)
 source("01_collect_data/parse_json.R")
 
+#Load data from 2025 and before
 everything <- read_csv("02_extracted_data/Abby_allData.csv", show_col_types = F) %>%
   mutate(Observer = "Abby Lewis") %>%
   bind_rows(read_csv("02_extracted_data/Bjorn_allData.csv", show_col_types = F) %>%
@@ -10,6 +11,7 @@ everything <- read_csv("02_extracted_data/Abby_allData.csv", show_col_types = F)
   bind_rows(read_csv("02_extracted_data/Sue_allData.csv", show_col_types = F) %>%
               mutate(Observer = "Susan Lewis")) 
 
+#Now load newer data
 #Extract data from json files to append
 jsons <- list.files("02_extracted_data", pattern = ".json", recursive = T, full.names = T)
 recents <- jsons %>%
@@ -24,7 +26,7 @@ comb <- everything %>%
   arrange(Date) %>%
   mutate(check_ID = paste(Date, Time, Latitude, Longitude),
          `Common Name` = sub(" \\(.+\\)", "", `Common Name`)) %>%
-  filter(!grepl("sp.", `Common Name`),
+  filter(!grepl("sp\\.", `Common Name`),
          !grepl("/", `Common Name`)) %>%
   mutate(Observer = ifelse(Observer == "Abigail  Lewis", "Abby Lewis", Observer))
 

@@ -6,7 +6,24 @@ library(rebird)
 parse_json_ebird <- function(file) {
   json_data <- fromJSON(file)
   birds <- json_data$obs
-  loc_data <- ebirdregion(json_data$locId, key = Sys.getenv("ebird_key"))
+
+  #Build in re-tries because sometime this fails (rate limiting API??)
+  loc_data <- NULL
+  
+  for (i in 1:3) {
+    loc_data <- tryCatch(
+      ebirdregion(json_data$locId, key = Sys.getenv("ebird_key")),
+      error = function(e) {
+        message(sprintf("Attempt %d failed: %s", i, e$message))
+        NULL
+      }
+    )
+    
+    if (!is.null(loc_data)) break
+    
+    Sys.sleep(1)
+  }
+
   out <- tibble(
     `Submission ID` = json_data$subId,
     `Common Name` = identify_common_name(birds$speciesCode),
