@@ -41,7 +41,8 @@ with sync_playwright() as p:
 
     # get the ten most recent checklists from participants' profiles
     for user_id in USER_IDS:
-        page.goto(f'https://ebird.org/profile/{user_id}', wait_until = 'networkidle')
+        page.goto(f'https://ebird.org/profile/{user_id}')
+        page.locator('.ProfilePage-checklists').wait_for()
         soup = BeautifulSoup(page.content(), 'html.parser')
         list_ids = [elem['href'].split('checklist/')[1] for elem in soup.find_all(attrs = {'class': 'FeedItem-main'})]
 
