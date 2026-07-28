@@ -27,7 +27,7 @@ comb <- everything %>%
   mutate(check_ID = paste(Date, Time, Latitude, Longitude),
          `Common Name` = sub(" \\(.+\\)", "", `Common Name`)) %>%
   filter(!grepl("sp\\.", `Common Name`),
-         !grepl("/", `Common Name`)) %>%
+         !grepl("\\/", `Common Name`)) %>%
   mutate(Observer = ifelse(Observer == "Abigail  Lewis", "Abby Lewis", Observer))
 
 write_csv(comb, "02_extracted_data/for_dashbird.csv")
