@@ -10,7 +10,7 @@ parse_json_ebird <- function(file) {
   #Build in re-tries because sometime this fails (rate limiting API??)
   loc_data <- NULL
   
-  for (i in 1:3) {
+  for (i in 1:10) {
     loc_data <- tryCatch(
       ebirdregion(json_data$locId, key = Sys.getenv("ebird_key")),
       error = function(e) {
