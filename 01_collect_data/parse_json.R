@@ -3,22 +3,47 @@ install.packages("rebird")
 library(jsonlite)
 library(rebird)
 
+ebirdregion_asl <- function (loc,
+          key = NULL, ...) 
+{
+  url <- paste0("https://api.ebird.org/v2/ref/region/info/", loc)
+  tt <- httr::GET(url, httr:::add_headers(`X-eBirdApiToken` = rebird:::get_key(key)))
+  ss <- httr::content(tt, as = "text", encoding = "UTF-8")
+  out <- fromJSON(ss)
+  loc_data <- data.frame(lat = out$latitude, lng = out$longitude, locName = out$result)
+  return(loc_data)
+}
+
 parse_json_ebird <- function(file) {
   json_data <- fromJSON(file)
   birds <- json_data$obs
-
+  message(file)
   #Build in re-tries because sometime this fails (rate limiting API??)
   loc_data <- NULL
   
-  for (i in 1:10) {
+  for (i in 1:3) {
+    
+    # First try ebirdregion()
     loc_data <- tryCatch(
-      ebirdregion(json_data$locId, key = Sys.getenv("ebird_key")),
+      ebirdregion(json_data$locId, key = Sys.getenv("ebird_key"), provisional = T, hotspot = F),
       error = function(e) {
-        message(sprintf("Attempt %d failed: %s", i, e$message))
+        message(sprintf("Attempt %d: ebirdregion failed: %s", i, e$message))
         NULL
       }
     )
     
+    # If that failed, try my version
+    if (is.null(loc_data)) {
+      loc_data <- tryCatch(
+        ebirdregion_asl(json_data$locId, key = Sys.getenv("ebird_key")),
+        error = function(e) {
+          message(sprintf("Attempt %d: ebirdregioninfo failed: %s", i, e$message))
+          NULL
+        }
+      )
+    }
+    
+    # Success
     if (!is.null(loc_data)) break
     
     Sys.sleep(1)
@@ -30,13 +55,13 @@ parse_json_ebird <- function(file) {
     `Scientific Name` = identify_scientific_name(birds$speciesCode),
     Count = birds$howManyStr,
     `Location ID` = json_data$locId,
-    Location = ifelse(nrow(loc_data)>0, 
+    Location = ifelse(!is.null(loc_data), 
                       unique(loc_data$locName),
                       NA),
-    Latitude = ifelse(nrow(loc_data)>0, 
+    Latitude = ifelse(!is.null(loc_data), 
                       unique(loc_data$lat),
                       NA),
-    Longitude = ifelse(nrow(loc_data)>0, 
+    Longitude = ifelse(!is.null(loc_data), 
                        unique(loc_data$lng),
                        NA),
     Date = as.Date(json_data$obsDt),
