@@ -1,3 +1,4 @@
 playwright
+seleniumbase
 beautifulsoup4
 requests
