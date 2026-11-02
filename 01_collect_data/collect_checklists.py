@@ -29,7 +29,7 @@ except FileNotFoundError:
 with sync_playwright() as p:
 
     # log into eBird so we can access public profiles
-    browser = p.chromium.launch(headless = True)
+    browser = p.chromium.launch(headless = False)
     context = browser.new_context()
     page = context.new_page()
     page.goto('https://secure.birds.cornell.edu/cassso/login')
